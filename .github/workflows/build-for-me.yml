@@ -1,6 +1,13 @@
 name: Build for Me
 
 on:
+  push:
+    branches:
+      - xio-master
+  pull_request:
+    branches:
+      - xio-master
+
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
   
