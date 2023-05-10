@@ -5,7 +5,7 @@ RUN yarn config set registry https://registry.npmmirror.com
 RUN yarn install --frozen-lockfile --network-timeout 1000000 && yarn run build
 
 
-FROM golang:1.17.5 AS BACK
+FROM golang:1.18 AS BACK
 WORKDIR /go/src/casdoor
 COPY . .
 RUN ./build.sh
