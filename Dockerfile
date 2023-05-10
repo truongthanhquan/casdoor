@@ -1,4 +1,4 @@
-FROM node:16.13.0 AS FRONT
+FROM node:16.14.0 AS FRONT
 WORKDIR /web
 COPY ./web .
 RUN yarn config set registry https://registry.npmmirror.com
