@@ -220,7 +220,7 @@ jobs:
           target: STANDARD
           platforms: linux/amd64
           push: true
-          tags: truongthanhquan/casdoor:${{ steps.get-current-tag.outputs.tag || 'latest' }}
+          tags: ghcr.io/truongthanhquan/casdoor:${{ steps.get-current-tag.outputs.tag || 'latest' }}
 
       - name: Push to Docker Hub - linux/arm64
         uses: docker/build-push-action@v3
@@ -230,7 +230,7 @@ jobs:
           target: STANDARD
           platforms: linux/arm64
           push: true
-          tags: truongthanhquan/casdoor:${{ steps.get-current-tag.outputs.tag || 'latest' }}
+          tags: ghcr.io/truongthanhquan/casdoor:${{ steps.get-current-tag.outputs.tag || 'latest' }}
 
       - name: Push All In One Version to Docker Hub - linux/amd64
         uses: docker/build-push-action@v3
@@ -240,7 +240,7 @@ jobs:
           target: ALLINONE
           platforms: linux/amd64
           push: true
-          tags: truongthanhquan/casdoor-all-in-one:${{steps.get-current-tag.outputs.tag || 'latest' }}
+          tags: ghcr.io/truongthanhquan/casdoor-all-in-one:${{steps.get-current-tag.outputs.tag || 'latest' }}
 
       - name: Push All In One Version to Docker Hub - linux/arm64
         uses: docker/build-push-action@v3
@@ -250,4 +250,4 @@ jobs:
           target: ALLINONE
           platforms: linux/arm64
           push: true
-          tags: truongthanhquan/casdoor-all-in-one:${{steps.get-current-tag.outputs.tag || 'latest' }}
+          tags: ghcr.io/truongthanhquan/casdoor-all-in-one:${{steps.get-current-tag.outputs.tag || 'latest' }}
