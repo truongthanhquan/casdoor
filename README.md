@@ -11,7 +11,7 @@
     <img alt="GitHub Workflow Status (branch)" src="https://github.com/casdoor/casdoor/workflows/Build/badge.svg?style=flat-square">
   </a>
   <a href="https://github.com/casdoor/casdoor/releases/latest">
-    <img alt="GitHub Release" src="https://img.shields.io/github/v/release/casbin/casdoor.svg">
+    <img alt="GitHub Release" src="https://img.shields.io/github/v/release/casdoor/casdoor.svg">
   </a>
   <a href="https://hub.docker.com/repository/docker/casbin/casdoor">
     <img alt="Docker Image Version (latest semver)" src="https://img.shields.io/badge/Docker%20Hub-latest-brightgreen">
@@ -23,16 +23,16 @@
     <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/casdoor/casdoor?style=flat-square">
   </a>
   <a href="https://github.com/casdoor/casdoor/blob/master/LICENSE">
-    <img src="https://img.shields.io/github/license/casbin/casdoor?style=flat-square" alt="license">
+    <img src="https://img.shields.io/github/license/casdoor/casdoor?style=flat-square" alt="license">
   </a>
   <a href="https://github.com/casdoor/casdoor/issues">
-    <img alt="GitHub issues" src="https://img.shields.io/github/issues/casbin/casdoor?style=flat-square">
+    <img alt="GitHub issues" src="https://img.shields.io/github/issues/casdoor/casdoor?style=flat-square">
   </a>
   <a href="#">
-    <img alt="GitHub stars" src="https://img.shields.io/github/stars/casbin/casdoor?style=flat-square">
+    <img alt="GitHub stars" src="https://img.shields.io/github/stars/casdoor/casdoor?style=flat-square">
   </a>
   <a href="https://github.com/casdoor/casdoor/network">
-    <img alt="GitHub forks" src="https://img.shields.io/github/forks/casbin/casdoor?style=flat-square">
+    <img alt="GitHub forks" src="https://img.shields.io/github/forks/casdoor/casdoor?style=flat-square">
   </a>
   <a href="https://crowdin.com/project/casdoor-site">
     <img alt="Crowdin" src="https://badges.crowdin.net/casdoor-site/localized.svg">

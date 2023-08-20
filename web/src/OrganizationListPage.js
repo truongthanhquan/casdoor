@@ -81,7 +81,6 @@ class OrganizationListPage extends BaseListPage {
         {name: "Properties", visible: false, viewRule: "Admin", modifyRule: "Admin"},
         {name: "Is online", visible: true, viewRule: "Admin", modifyRule: "Admin"},
         {name: "Is admin", visible: true, viewRule: "Admin", modifyRule: "Admin"},
-        {name: "Is global admin", visible: true, viewRule: "Admin", modifyRule: "Admin"},
         {name: "Is forbidden", visible: true, viewRule: "Admin", modifyRule: "Admin"},
         {name: "Is deleted", visible: true, viewRule: "Admin", modifyRule: "Admin"},
         {Name: "Multi-factor authentication", Visible: true, ViewRule: "Self", ModifyRule: "Self"},
@@ -182,7 +181,7 @@ class OrganizationListPage extends BaseListPage {
         title: i18next.t("organization:Website URL"),
         dataIndex: "websiteUrl",
         key: "websiteUrl",
-        width: "300px",
+        width: "200px",
         sorter: true,
         ...this.getColumnSearchProps("websiteUrl"),
         render: (text, record, index) => {
@@ -243,7 +242,7 @@ class OrganizationListPage extends BaseListPage {
         title: i18next.t("general:Action"),
         dataIndex: "",
         key: "op",
-        width: "320px",
+        width: "350px",
         fixed: (Setting.isMobile()) ? "false" : "right",
         render: (text, record, index) => {
           return (

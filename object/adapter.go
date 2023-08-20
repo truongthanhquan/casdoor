@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/casbin/casbin/v2/model"
 	"github.com/casdoor/casdoor/conf"
 	"github.com/casdoor/casdoor/util"
 	xormadapter "github.com/casdoor/xorm-adapter/v3"
 	"github.com/xorm-io/core"
+	"github.com/xorm-io/xorm"
 )
 
 type Adapter struct {
@@ -39,8 +39,6 @@ type Adapter struct {
 	Database        string `xorm:"varchar(100)" json:"database"`
 	Table           string `xorm:"varchar(100)" json:"table"`
 	TableNamePrefix string `xorm:"varchar(100)" json:"tableNamePrefix"`
-
-	IsEnabled bool `json:"isEnabled"`
 
 	*xormadapter.Adapter `xorm:"-" json:"-"`
 }
@@ -149,20 +147,23 @@ func (adapter *Adapter) getTable() string {
 	}
 }
 
-func (adapter *Adapter) initAdapter() error {
+func (adapter *Adapter) InitAdapter() error {
 	if adapter.Adapter == nil {
 		var dataSourceName string
 
 		if adapter.builtInAdapter() {
 			dataSourceName = conf.GetConfigString("dataSourceName")
+			if adapter.DatabaseType == "mysql" {
+				dataSourceName = dataSourceName + adapter.Database
+			}
 		} else {
 			switch adapter.DatabaseType {
 			case "mssql":
 				dataSourceName = fmt.Sprintf("sqlserver://%s:%s@%s:%d?database=%s", adapter.User,
 					adapter.Password, adapter.Host, adapter.Port, adapter.Database)
 			case "mysql":
-				dataSourceName = fmt.Sprintf("%s:%s@tcp(%s:%d)/", adapter.User,
-					adapter.Password, adapter.Host, adapter.Port)
+				dataSourceName = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", adapter.User,
+					adapter.Password, adapter.Host, adapter.Port, adapter.Database)
 			case "postgres":
 				dataSourceName = fmt.Sprintf("user=%s password=%s host=%s port=%d sslmode=disable dbname=%s", adapter.User,
 					adapter.Password, adapter.Host, adapter.Port, adapter.Database)
@@ -181,7 +182,8 @@ func (adapter *Adapter) initAdapter() error {
 		}
 
 		var err error
-		adapter.Adapter, err = xormadapter.NewAdapterByEngineWithTableName(NewAdapter(adapter.DatabaseType, dataSourceName, adapter.Database).Engine, adapter.getTable(), adapter.TableNamePrefix)
+		engine, err := xorm.NewEngine(adapter.DatabaseType, dataSourceName)
+		adapter.Adapter, err = xormadapter.NewAdapterByEngineWithTableName(engine, adapter.getTable(), adapter.TableNamePrefix)
 		if err != nil {
 			return err
 		}
@@ -209,130 +211,10 @@ func adapterChangeTrigger(oldName string, newName string) error {
 	return session.Commit()
 }
 
-func safeReturn(policy []string, i int) string {
-	if len(policy) > i {
-		return policy[i]
-	} else {
-		return ""
-	}
-}
-
-func matrixToCasbinRules(Ptype string, policies [][]string) []*xormadapter.CasbinRule {
-	res := []*xormadapter.CasbinRule{}
-
-	for _, policy := range policies {
-		line := xormadapter.CasbinRule{
-			Ptype: Ptype,
-			V0:    safeReturn(policy, 0),
-			V1:    safeReturn(policy, 1),
-			V2:    safeReturn(policy, 2),
-			V3:    safeReturn(policy, 3),
-			V4:    safeReturn(policy, 4),
-			V5:    safeReturn(policy, 5),
-		}
-		res = append(res, &line)
-	}
-
-	return res
-}
-
-func GetPolicies(adapter *Adapter) ([]*xormadapter.CasbinRule, error) {
-	err := adapter.initAdapter()
-	if err != nil {
-		return nil, err
-	}
-
-	casbinModel := getModelDef()
-	err = adapter.LoadPolicy(casbinModel)
-	if err != nil {
-		return nil, err
-	}
-
-	policies := matrixToCasbinRules("p", casbinModel.GetPolicy("p", "p"))
-	policies = append(policies, matrixToCasbinRules("g", casbinModel.GetPolicy("g", "g"))...)
-	return policies, nil
-}
-
-func UpdatePolicy(oldPolicy, newPolicy []string, adapter *Adapter) (bool, error) {
-	err := adapter.initAdapter()
-	if err != nil {
-		return false, err
-	}
-
-	casbinModel := getModelDef()
-	err = adapter.LoadPolicy(casbinModel)
-	if err != nil {
-		return false, err
-	}
-
-	affected := casbinModel.UpdatePolicy("p", "p", oldPolicy, newPolicy)
-	if err != nil {
-		return affected, err
-	}
-	err = adapter.SavePolicy(casbinModel)
-	if err != nil {
-		return false, err
-	}
-
-	return affected, nil
-}
-
-func AddPolicy(policy []string, adapter *Adapter) (bool, error) {
-	err := adapter.initAdapter()
-	if err != nil {
-		return false, err
-	}
-
-	casbinModel := getModelDef()
-	err = adapter.LoadPolicy(casbinModel)
-	if err != nil {
-		return false, err
-	}
-
-	casbinModel.AddPolicy("p", "p", policy)
-	err = adapter.SavePolicy(casbinModel)
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
-func RemovePolicy(policy []string, adapter *Adapter) (bool, error) {
-	err := adapter.initAdapter()
-	if err != nil {
-		return false, err
-	}
-
-	casbinModel := getModelDef()
-	err = adapter.LoadPolicy(casbinModel)
-	if err != nil {
-		return false, err
-	}
-
-	affected := casbinModel.RemovePolicy("p", "p", policy)
-	if err != nil {
-		return affected, err
-	}
-	err = adapter.SavePolicy(casbinModel)
-	if err != nil {
-		return false, err
-	}
-
-	return affected, nil
-}
-
 func (adapter *Adapter) builtInAdapter() bool {
 	if adapter.Owner != "built-in" {
 		return false
 	}
 
-	return adapter.Name == "permission-adapter-built-in" || adapter.Name == "api-adapter-built-in"
-}
-
-func getModelDef() model.Model {
-	casbinModel := model.NewModel()
-	casbinModel.AddDef("p", "p", "_, _, _, _, _, _")
-	casbinModel.AddDef("g", "g", "_, _, _, _, _, _")
-	return casbinModel
+	return adapter.Name == "user-adapter-built-in" || adapter.Name == "api-adapter-built-in"
 }

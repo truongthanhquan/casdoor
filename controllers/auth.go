@@ -70,7 +70,7 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 	}
 
 	// check user's tag
-	if !user.IsGlobalAdmin && !user.IsAdmin && len(application.Tags) > 0 {
+	if !user.IsGlobalAdmin() && !user.IsAdmin && len(application.Tags) > 0 {
 		// only users with the tag that is listed in the application tags can login
 		if !util.InSlice(application.Tags, user.Tag) {
 			c.ResponseError(fmt.Sprintf(c.T("auth:User's tag: %s is not listed in the application's tags"), user.Tag))
@@ -187,11 +187,34 @@ func (c *ApiController) GetApplicationLogin() {
 	redirectUri := c.Input().Get("redirectUri")
 	scope := c.Input().Get("scope")
 	state := c.Input().Get("state")
+	id := c.Input().Get("id")
+	loginType := c.Input().Get("type")
 
-	msg, application, err := object.CheckOAuthLogin(clientId, responseType, redirectUri, scope, state, c.GetAcceptLanguage())
-	if err != nil {
-		c.ResponseError(err.Error())
-		return
+	var application *object.Application
+	var msg string
+	var err error
+	if loginType == "code" {
+		msg, application, err = object.CheckOAuthLogin(clientId, responseType, redirectUri, scope, state, c.GetAcceptLanguage())
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+	} else if loginType == "cas" {
+		application, err = object.GetApplication(id)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		if application == nil {
+			c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), id))
+			return
+		}
+
+		err = object.CheckCasLogin(application, c.GetAcceptLanguage(), redirectUri)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
 	}
 
 	application = object.GetMaskedApplication(application, "")
@@ -566,7 +589,6 @@ func (c *ApiController) Login() {
 						Region:            userInfo.CountryCode,
 						Score:             initScore,
 						IsAdmin:           false,
-						IsGlobalAdmin:     false,
 						IsForbidden:       false,
 						IsDeleted:         false,
 						SignupApplication: application.Name,
