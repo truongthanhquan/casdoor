@@ -46,6 +46,9 @@ export const Countries = [{label: "English", key: "en", country: "US", alt: "Eng
   {label: "Itariano", key: "it", country: "IT", alt: "Itariano"},
   {label: "Marley", key: "ms", country: "MY", alt: "Marley"},
   {label: "Tkiš", key: "tr", country: "TR", alt: "Tkiš"},
+  {label: "لغة عربية", key: "ar", country: "DZ", alt: "لغة عربية"},
+  {label: "עִבְרִית", key: "he", country: "IL", alt: "עִבְרִית"},
+  {label: "Filipino", key: "fi", country: "PH", alt: "Filipino"},
 ];
 
 export function getThemeData(organization, application) {
@@ -92,6 +95,10 @@ export const OtherProviderInfo = {
     "Azure ACS": {
       logo: `${StaticBaseUrl}/img/social_azure.png`,
       url: "https://azure.microsoft.com/en-us/products/communication-services",
+    },
+    "Custom HTTP SMS": {
+      logo: `${StaticBaseUrl}/img/email_default.png`,
+      url: "https://casdoor.org/docs/provider/sms/overview",
     },
     "Infobip SMS": {
       logo: `${StaticBaseUrl}/img/social_infobip.png`,
@@ -213,6 +220,10 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/payment_paypal.png`,
       url: "https://www.paypal.com/",
     },
+    "Stripe": {
+      logo: `${StaticBaseUrl}/img/social_stripe.png`,
+      url: "https://stripe.com/",
+    },
     "GC": {
       logo: `${StaticBaseUrl}/img/payment_gc.png`,
       url: "https://gc.org",
@@ -254,6 +265,16 @@ export const OtherProviderInfo = {
     "MetaMask": {
       logo: `${StaticBaseUrl}/img/social_metamask.svg`,
       url: "https://metamask.io/",
+    },
+    "Web3Onboard": {
+      logo: `${StaticBaseUrl}/img/social_web3onboard.svg`,
+      url: "https://onboard.blocknative.com/",
+    },
+  },
+  Notification: {
+    "Telegram": {
+      logo: `${StaticBaseUrl}/img/social_telegram.png`,
+      url: "https://telegram.org/",
     },
   },
 };
@@ -605,7 +626,7 @@ export function isAdminUser(account) {
   if (account === undefined || account === null) {
     return false;
   }
-  return account.owner === "built-in" || account.isGlobalAdmin === true;
+  return account.owner === "built-in";
 }
 
 export function isLocalAdminUser(account) {
@@ -888,6 +909,7 @@ export function getProviderTypeOptions(category) {
         {id: "Aliyun SMS", name: "Alibaba Cloud SMS"},
         {id: "Amazon SNS", name: "Amazon SNS"},
         {id: "Azure ACS", name: "Azure ACS"},
+        {id: "Custom HTTP SMS", name: "Custom HTTP SMS"},
         {id: "Infobip SMS", name: "Infobip SMS"},
         {id: "Tencent Cloud SMS", name: "Tencent Cloud SMS"},
         {id: "Baidu Cloud SMS", name: "Baidu Cloud SMS"},
@@ -924,6 +946,7 @@ export function getProviderTypeOptions(category) {
       {id: "Alipay", name: "Alipay"},
       {id: "WeChat Pay", name: "WeChat Pay"},
       {id: "PayPal", name: "PayPal"},
+      {id: "Stripe", name: "Stripe"},
       {id: "GC", name: "GC"},
     ]);
   } else if (category === "Captcha") {
@@ -938,6 +961,11 @@ export function getProviderTypeOptions(category) {
   } else if (category === "Web3") {
     return ([
       {id: "MetaMask", name: "MetaMask"},
+      {id: "Web3Onboard", name: "Web3-Onboard"},
+    ]);
+  } else if (category === "Notification") {
+    return ([
+      {id: "Telegram", name: "Telegram"},
     ]);
   } else {
     return [];

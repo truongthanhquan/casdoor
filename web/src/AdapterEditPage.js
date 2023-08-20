@@ -13,16 +13,11 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Card, Col, Input, InputNumber, Row, Select, Switch} from "antd";
+import {Button, Card, Col, Input, InputNumber, Row, Select} from "antd";
 import * as AdapterBackend from "./backend/AdapterBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
 import * as Setting from "./Setting";
 import i18next from "i18next";
-
-import "codemirror/lib/codemirror.css";
-import PolicyTable from "./table/PoliciyTable";
-require("codemirror/theme/material-darker.css");
-require("codemirror/mode/javascript/javascript");
 
 const {Option} = Select;
 
@@ -232,20 +227,23 @@ class AdapterEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-            {Setting.getLabel(i18next.t("adapter:Policies"), i18next.t("adapter:Policies - Tooltip"))} :
+            {Setting.getLabel(i18next.t("provider:DB Test"), i18next.t("provider:DB Test - Tooltip"))} :
           </Col>
-          <Col span={22}>
-            <PolicyTable owner={this.state.organizationName} name={this.state.adapterName} mode={this.state.mode} />
-          </Col>
-        </Row>
-        <Row style={{marginTop: "20px"}} >
-          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 19 : 2}>
-            {Setting.getLabel(i18next.t("general:Is enabled"), i18next.t("general:Is enabled - Tooltip"))} :
-          </Col>
-          <Col span={1} >
-            <Switch checked={this.state.adapter.isEnabled} onChange={checked => {
-              this.updateAdapterField("isEnabled", checked);
-            }} />
+          <Col span={2} >
+            <Button type={"primary"} onClick={() => {
+              AdapterBackend.getPolicies("", "", `${this.state.organizationName}/${this.state.adapterName}`)
+                .then((res) => {
+                  if (res.status === "ok") {
+                    Setting.showMessage("success", i18next.t("syncer:Connect successfully"));
+                  } else {
+                    Setting.showMessage("error", i18next.t("syncer:Failed to connect") + ": " + res.msg);
+                  }
+                })
+                .catch(error => {
+                  Setting.showMessage("error", `${i18next.t("general:Failed to connect to server")}: ${error}`);
+                });
+            }
+            }>{i18next.t("syncer:Test DB Connection")}</Button>
           </Col>
         </Row>
       </Card>

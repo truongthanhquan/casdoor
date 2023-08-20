@@ -51,6 +51,7 @@ func initAPI() {
 	beego.Router("/api/signup", &controllers.ApiController{}, "POST:Signup")
 	beego.Router("/api/login", &controllers.ApiController{}, "POST:Login")
 	beego.Router("/api/get-app-login", &controllers.ApiController{}, "GET:GetApplicationLogin")
+	beego.Router("/api/get-dashboard", &controllers.ApiController{}, "GET:GetDashboard")
 	beego.Router("/api/logout", &controllers.ApiController{}, "GET,POST:Logout")
 	beego.Router("/api/get-account", &controllers.ApiController{}, "GET:GetAccount")
 	beego.Router("/api/userinfo", &controllers.ApiController{}, "GET:GetUserinfo")
@@ -180,9 +181,6 @@ func initAPI() {
 	beego.Router("/api/login/oauth/access_token", &controllers.ApiController{}, "POST:GetOAuthToken")
 	beego.Router("/api/login/oauth/refresh_token", &controllers.ApiController{}, "POST:RefreshToken")
 	beego.Router("/api/login/oauth/introspect", &controllers.ApiController{}, "POST:IntrospectToken")
-	beego.Router("/api/get-records", &controllers.ApiController{}, "GET:GetRecords")
-	beego.Router("/api/get-records-filter", &controllers.ApiController{}, "POST:GetRecordsByFilter")
-	beego.Router("/api/add-record", &controllers.ApiController{}, "POST:AddRecord")
 
 	beego.Router("/api/get-sessions", &controllers.ApiController{}, "GET:GetSessions")
 	beego.Router("/api/get-session", &controllers.ApiController{}, "GET:GetSingleSession")
@@ -247,6 +245,7 @@ func initAPI() {
 
 	beego.Router("/api/send-email", &controllers.ApiController{}, "POST:SendEmail")
 	beego.Router("/api/send-sms", &controllers.ApiController{}, "POST:SendSms")
+	beego.Router("/api/send-notification", &controllers.ApiController{}, "POST:SendNotification")
 
 	beego.Router("/api/webauthn/signup/begin", &controllers.ApiController{}, "Get:WebAuthnSignupBegin")
 	beego.Router("/api/webauthn/signup/finish", &controllers.ApiController{}, "Post:WebAuthnSignupFinish")

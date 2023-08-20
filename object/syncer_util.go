@@ -17,6 +17,7 @@ package object
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -153,14 +154,39 @@ func (syncer *Syncer) setUserByKeyValue(user *User, key string, value string) {
 		user.IsOnline = util.ParseBool(value)
 	case "IsAdmin":
 		user.IsAdmin = util.ParseBool(value)
-	case "IsGlobalAdmin":
-		user.IsGlobalAdmin = util.ParseBool(value)
 	case "IsForbidden":
 		user.IsForbidden = util.ParseBool(value)
 	case "IsDeleted":
 		user.IsDeleted = util.ParseBool(value)
 	case "CreatedIp":
 		user.CreatedIp = value
+	}
+}
+
+func (syncer *Syncer) getUserValue(user *User, key string) string {
+	jsonData, _ := json.Marshal(user)
+	var mapData map[string]interface{}
+	if err := json.Unmarshal(jsonData, &mapData); err != nil {
+		fmt.Println("conversion failed:", err)
+		return user.Id
+	}
+	value := mapData[util.SnakeToCamel(key)]
+
+	if str, ok := value.(string); ok {
+		return str
+	} else {
+		if value != nil {
+			valType := reflect.TypeOf(value)
+
+			typeName := valType.Name()
+			switch typeName {
+			case "bool":
+				return strconv.FormatBool(value.(bool))
+			case "int":
+				return strconv.Itoa(value.(int))
+			}
+		}
+		return user.Id
 	}
 }
 
@@ -261,7 +287,6 @@ func (syncer *Syncer) getMapFromOriginalUser(user *OriginalUser) map[string]stri
 	m["IsDefaultAvatar"] = util.BoolToString(user.IsDefaultAvatar)
 	m["IsOnline"] = util.BoolToString(user.IsOnline)
 	m["IsAdmin"] = util.BoolToString(user.IsAdmin)
-	m["IsGlobalAdmin"] = util.BoolToString(user.IsGlobalAdmin)
 	m["IsForbidden"] = util.BoolToString(user.IsForbidden)
 	m["IsDeleted"] = util.BoolToString(user.IsDeleted)
 	m["CreatedIp"] = user.CreatedIp

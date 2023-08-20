@@ -15,6 +15,8 @@
 import React, {Component} from "react";
 import "./App.less";
 import {Helmet} from "react-helmet";
+import Dashboard from "./basic/Dashboard";
+import ShortcutsPage from "./basic/ShortcutsPage";
 import {MfaRuleRequired} from "./Setting";
 import * as Setting from "./Setting";
 import {StyleProvider, legacyLogicalPropertiesTransformer} from "@ant-design/cssinjs";
@@ -43,7 +45,6 @@ import LdapEditPage from "./LdapEditPage";
 import LdapSyncPage from "./LdapSyncPage";
 import TokenListPage from "./TokenListPage";
 import TokenEditPage from "./TokenEditPage";
-import RecordListPage from "./RecordListPage";
 import WebhookListPage from "./WebhookListPage";
 import WebhookEditPage from "./WebhookEditPage";
 import SyncerListPage from "./SyncerListPage";
@@ -70,7 +71,7 @@ import SessionListPage from "./SessionListPage";
 import MfaSetupPage from "./auth/MfaSetupPage";
 import SystemInfo from "./SystemInfo";
 import AccountPage from "./account/AccountPage";
-import HomePage from "./basic/HomePage";
+import AppListPage from "./basic/AppListPage";
 import CustomGithubCorner from "./common/CustomGithubCorner";
 import * as Conf from "./Conf";
 
@@ -149,14 +150,14 @@ class App extends Component {
     this.setState({
       uri: uri,
     });
-    if (uri === "/") {
-      this.setState({selectedMenuKey: "/"});
+    if (uri === "/" || uri.includes("/shortcuts") || uri.includes("/apps")) {
+      this.setState({selectedMenuKey: "/home"});
     } else if (uri.includes("/organizations") || uri.includes("/trees") || uri.includes("/users") || uri.includes("/groups")) {
       this.setState({selectedMenuKey: "/orgs"});
-    } else if (uri.includes("/roles") || uri.includes("/permissions") || uri.includes("/models") || uri.includes("/adapters") || uri.includes("/enforcers")) {
-      this.setState({selectedMenuKey: "/auth"});
     } else if (uri.includes("/applications") || uri.includes("/providers") || uri.includes("/resources") || uri.includes("/certs")) {
       this.setState({selectedMenuKey: "/identity"});
+    } else if (uri.includes("/roles") || uri.includes("/permissions") || uri.includes("/models") || uri.includes("/adapters") || uri.includes("/enforcers")) {
+      this.setState({selectedMenuKey: "/auth"});
     } else if (uri.includes("/records") || uri.includes("/tokens") || uri.includes("/sessions")) {
       this.setState({selectedMenuKey: "/logs"});
     } else if (uri.includes("/products") || uri.includes("/payments") || uri.includes("/plans") || uri.includes("/pricings") || uri.includes("/subscriptions")) {
@@ -351,7 +352,7 @@ class App extends Component {
           }
           &nbsp;
           &nbsp;
-          {Setting.isMobile() ? null : Setting.getNameAtLeast(this.state.account.displayName)} &nbsp; <DownOutlined />
+          {Setting.isMobile() ? null : Setting.getShortText(Setting.getNameAtLeast(this.state.account.displayName), 30)} &nbsp; <DownOutlined />
           &nbsp;
           &nbsp;
           &nbsp;
@@ -401,7 +402,13 @@ class App extends Component {
       return [];
     }
 
-    res.push(Setting.getItem(<Link to="/">{i18next.t("general:Home")}</Link>, "/", <HomeTwoTone />));
+    res.push(Setting.getItem(<Link to="/">{i18next.t("general:Home")}</Link>, "/home", <HomeTwoTone />, [
+      Setting.getItem(<Link to="/">{i18next.t("general:Dashboard")}</Link>, "/"),
+      Setting.getItem(<Link to="/shortcuts">{i18next.t("general:Shortcuts")}</Link>, "/shortcuts"),
+      Setting.getItem(<Link to="/apps">{i18next.t("general:Apps")}</Link>, "/apps"),
+    ].filter(item => {
+      return Setting.isLocalAdminUser(this.state.account);
+    })));
 
     if (Setting.isLocalAdminUser(this.state.account)) {
       if (Conf.ShowGithubCorner) {
@@ -418,6 +425,13 @@ class App extends Component {
         Setting.getItem(<Link to="/users">{i18next.t("general:Users")}</Link>, "/users"),
       ]));
 
+      res.push(Setting.getItem(<Link style={{color: "black"}} to="/applications">{i18next.t("general:Identity")}</Link>, "/identity", <LockTwoTone />, [
+        Setting.getItem(<Link to="/applications">{i18next.t("general:Applications")}</Link>, "/applications"),
+        Setting.getItem(<Link to="/providers">{i18next.t("general:Providers")}</Link>, "/providers"),
+        Setting.getItem(<Link to="/resources">{i18next.t("general:Resources")}</Link>, "/resources"),
+        Setting.getItem(<Link to="/certs">{i18next.t("general:Certs")}</Link>, "/certs"),
+      ]));
+
       res.push(Setting.getItem(<Link style={{color: "black"}} to="/roles">{i18next.t("general:Authorization")}</Link>, "/auth", <SafetyCertificateTwoTone />, [
         Setting.getItem(<Link to="/roles">{i18next.t("general:Roles")}</Link>, "/roles"),
         Setting.getItem(<Link to="/permissions">{i18next.t("general:Permissions")}</Link>, "/permissions"),
@@ -431,20 +445,11 @@ class App extends Component {
           return true;
         }
       })));
-    }
 
-    if (Setting.isLocalAdminUser(this.state.account)) {
-      res.push(Setting.getItem(<Link style={{color: "black"}} to="/applications">{i18next.t("general:Identity")}</Link>, "/identity", <LockTwoTone />, [
-        Setting.getItem(<Link to="/applications">{i18next.t("general:Applications")}</Link>, "/applications"),
-        Setting.getItem(<Link to="/providers">{i18next.t("general:Providers")}</Link>, "/providers"),
-        Setting.getItem(<Link to="/resources">{i18next.t("general:Resources")}</Link>, "/resources"),
-        Setting.getItem(<Link to="/certs">{i18next.t("general:Certs")}</Link>, "/certs"),
-      ]));
-
-      res.push(Setting.getItem(<Link style={{color: "black"}} to="/records">{i18next.t("general:Logging & Auditing")}</Link>, "/logs", <WalletTwoTone />, [
-        Setting.getItem(<Link to="/records">{i18next.t("general:Records")}</Link>, "/records"),
-        Setting.getItem(<Link to="/tokens">{i18next.t("general:Tokens")}</Link>, "/tokens"),
+      res.push(Setting.getItem(<Link style={{color: "black"}} to="/sessions">{i18next.t("general:Logging & Auditing")}</Link>, "/logs", <WalletTwoTone />, [
         Setting.getItem(<Link to="/sessions">{i18next.t("general:Sessions")}</Link>, "/sessions"),
+        Setting.getItem(<a target="_blank" rel="noreferrer" href={"http://localhost:18001/records"}>{i18next.t("general:Records")}</a>, "/records"),
+        Setting.getItem(<Link to="/tokens">{i18next.t("general:Tokens")}</Link>, "/tokens"),
       ]));
 
       res.push(Setting.getItem(<Link style={{color: "black"}} to="/products">{i18next.t("general:Business & Payments")}</Link>, "/business", <DollarTwoTone />, [
@@ -479,7 +484,9 @@ class App extends Component {
   renderRouter() {
     return (
       <Switch>
-        <Route exact path="/" render={(props) => this.renderLoginIfNotLoggedIn(<HomePage account={this.state.account} {...props} />)} />
+        <Route exact path="/" render={(props) => this.renderLoginIfNotLoggedIn(<Dashboard account={this.state.account} {...props} />)} />
+        <Route exact path="/apps" render={(props) => this.renderLoginIfNotLoggedIn(<AppListPage account={this.state.account} {...props} />)} />
+        <Route exact path="/shortcuts" render={(props) => this.renderLoginIfNotLoggedIn(<ShortcutsPage account={this.state.account} {...props} />)} />
         <Route exact path="/account" render={(props) => this.renderLoginIfNotLoggedIn(<AccountPage account={this.state.account} {...props} />)} />
         <Route exact path="/organizations" render={(props) => this.renderLoginIfNotLoggedIn(<OrganizationListPage account={this.state.account} {...props} />)} />
         <Route exact path="/organizations/:organizationName" render={(props) => this.renderLoginIfNotLoggedIn(<OrganizationEditPage account={this.state.account} onChangeTheme={this.setTheme} {...props} />)} />
@@ -529,7 +536,6 @@ class App extends Component {
         <Route exact path="/payments" render={(props) => this.renderLoginIfNotLoggedIn(<PaymentListPage account={this.state.account} {...props} />)} />
         <Route exact path="/payments/:organizationName/:paymentName" render={(props) => this.renderLoginIfNotLoggedIn(<PaymentEditPage account={this.state.account} {...props} />)} />
         <Route exact path="/payments/:organizationName/:paymentName/result" render={(props) => this.renderLoginIfNotLoggedIn(<PaymentResultPage account={this.state.account} {...props} />)} />
-        <Route exact path="/records" render={(props) => this.renderLoginIfNotLoggedIn(<RecordListPage account={this.state.account} {...props} />)} />
         <Route exact path="/mfa/setup" render={(props) => this.renderLoginIfNotLoggedIn(<MfaSetupPage account={this.state.account} onfinish={() => this.setState({requiredEnableMfa: false})} {...props} />)} />
         <Route exact path="/.well-known/openid-configuration" render={(props) => <OdicDiscoveryPage />} />
         <Route exact path="/sysinfo" render={(props) => this.renderLoginIfNotLoggedIn(<SystemInfo account={this.state.account} {...props} />)} />
