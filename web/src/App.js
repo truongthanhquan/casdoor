@@ -89,6 +89,7 @@ import ThemeSelect from "./common/select/ThemeSelect";
 import OrganizationSelect from "./common/select/OrganizationSelect";
 import {clearWeb3AuthToken} from "./auth/Web3Auth";
 import AccountAvatar from "./account/AccountAvatar";
+import OpenTour from "./common/OpenTour";
 
 const {Header, Footer, Content} = Layout;
 
@@ -379,6 +380,7 @@ class App extends Component {
               });
             }} />
           <LanguageSelect languages={this.state.account.organization.languages} />
+          <OpenTour />
           {Setting.isAdminUser(this.state.account) && !Setting.isMobile() &&
             <OrganizationSelect
               initValue={Setting.getOrganization()}
@@ -448,7 +450,7 @@ class App extends Component {
 
       res.push(Setting.getItem(<Link style={{color: "black"}} to="/sessions">{i18next.t("general:Logging & Auditing")}</Link>, "/logs", <WalletTwoTone />, [
         Setting.getItem(<Link to="/sessions">{i18next.t("general:Sessions")}</Link>, "/sessions"),
-        Setting.getItem(<a target="_blank" rel="noreferrer" href={"http://localhost:18001/records"}>{i18next.t("general:Records")}</a>, "/records"),
+        Setting.getItem(<a target="_blank" rel="noreferrer" href={Conf.CasvisorUrl}>{i18next.t("general:Records")}</a>, "/records"),
         Setting.getItem(<Link to="/tokens">{i18next.t("general:Tokens")}</Link>, "/tokens"),
       ]));
 
@@ -460,11 +462,17 @@ class App extends Component {
         Setting.getItem(<Link to="/subscriptions">{i18next.t("general:Subscriptions")}</Link>, "/subscriptions"),
       ]));
 
-      res.push(Setting.getItem(<Link style={{color: "black"}} to="/sysinfo">{i18next.t("general:Admin")}</Link>, "/admin", <SettingTwoTone />, [
-        Setting.getItem(<Link to="/sysinfo">{i18next.t("general:System Info")}</Link>, "/sysinfo"),
-        Setting.getItem(<Link to="/syncers">{i18next.t("general:Syncers")}</Link>, "/syncers"),
-        Setting.getItem(<Link to="/webhooks">{i18next.t("general:Webhooks")}</Link>, "/webhooks"),
-        Setting.getItem(<a target="_blank" rel="noreferrer" href={Setting.isLocalhost() ? `${Setting.ServerUrl}/swagger` : "/swagger"}>{i18next.t("general:Swagger")}</a>, "/swagger")]));
+      if (Setting.isAdminUser(this.state.account)) {
+        res.push(Setting.getItem(<Link style={{color: "black"}} to="/sysinfo">{i18next.t("general:Admin")}</Link>, "/admin", <SettingTwoTone />, [
+          Setting.getItem(<Link to="/sysinfo">{i18next.t("general:System Info")}</Link>, "/sysinfo"),
+          Setting.getItem(<Link to="/syncers">{i18next.t("general:Syncers")}</Link>, "/syncers"),
+          Setting.getItem(<Link to="/webhooks">{i18next.t("general:Webhooks")}</Link>, "/webhooks"),
+          Setting.getItem(<a target="_blank" rel="noreferrer" href={Setting.isLocalhost() ? `${Setting.ServerUrl}/swagger` : "/swagger"}>{i18next.t("general:Swagger")}</a>, "/swagger")]));
+      } else {
+        res.push(Setting.getItem(<Link style={{color: "black"}} to="/syncers">{i18next.t("general:Admin")}</Link>, "/admin", <SettingTwoTone />, [
+          Setting.getItem(<Link to="/syncers">{i18next.t("general:Syncers")}</Link>, "/syncers"),
+          Setting.getItem(<Link to="/webhooks">{i18next.t("general:Webhooks")}</Link>, "/webhooks")]));
+      }
     }
 
     return res;
@@ -563,9 +571,7 @@ class App extends Component {
 
   renderContent() {
     const onClick = ({key}) => {
-      if (key === "/swagger") {
-        window.open(Setting.isLocalhost() ? `${Setting.ServerUrl}/swagger` : "/swagger", "_blank");
-      } else {
+      if (key !== "/swagger" && key !== "/records") {
         if (this.state.requiredEnableMfa) {
           Setting.showMessage("info", "Please enable MFA first!");
         } else {
@@ -657,7 +663,8 @@ class App extends Component {
         window.location.pathname.startsWith("/result") ||
         window.location.pathname.startsWith("/cas") ||
         window.location.pathname.startsWith("/auto-signup") ||
-        window.location.pathname.startsWith("/select-plan");
+        window.location.pathname.startsWith("/select-plan") ||
+        window.location.pathname.startsWith("/buy-plan");
   }
 
   renderPage() {

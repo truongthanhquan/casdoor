@@ -160,6 +160,12 @@ func (syncer *Syncer) setUserByKeyValue(user *User, key string, value string) {
 		user.IsDeleted = util.ParseBool(value)
 	case "CreatedIp":
 		user.CreatedIp = value
+	case "PreferredMfaType":
+		user.PreferredMfaType = value
+	case "TotpSecret":
+		user.TotpSecret = value
+	case "SignupApplication":
+		user.SignupApplication = value
 	}
 }
 
@@ -290,6 +296,9 @@ func (syncer *Syncer) getMapFromOriginalUser(user *OriginalUser) map[string]stri
 	m["IsForbidden"] = util.BoolToString(user.IsForbidden)
 	m["IsDeleted"] = util.BoolToString(user.IsDeleted)
 	m["CreatedIp"] = user.CreatedIp
+	m["PreferredMfaType"] = user.PreferredMfaType
+	m["TotpSecret"] = user.TotpSecret
+	m["SignupApplication"] = user.SignupApplication
 
 	m2 := map[string]string{}
 	for _, tableColumn := range syncer.TableColumns {
@@ -312,20 +321,4 @@ func (syncer *Syncer) getSqlSetStringFromMap(m map[string]string) string {
 		tokens = append(tokens, token)
 	}
 	return strings.Join(tokens, ", ")
-}
-
-func (syncer *Syncer) getSqlKeyValueStringFromMap(m map[string]string) (string, string) {
-	typeMap := syncer.getTableColumnsTypeMap()
-
-	keys := []string{}
-	values := []string{}
-	for k, v := range m {
-		if typeMap[k] == "string" {
-			v = fmt.Sprintf("'%s'", v)
-		}
-
-		keys = append(keys, k)
-		values = append(values, v)
-	}
-	return strings.Join(keys, ", "), strings.Join(values, ", ")
 }
