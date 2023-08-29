@@ -96,10 +96,6 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/social_azure.png`,
       url: "https://azure.microsoft.com/en-us/products/communication-services",
     },
-    "Custom HTTP SMS": {
-      logo: `${StaticBaseUrl}/img/email_default.png`,
-      url: "https://casdoor.org/docs/provider/sms/overview",
-    },
     "Infobip SMS": {
       logo: `${StaticBaseUrl}/img/social_infobip.png`,
       url: "https://portal.infobip.com/homepage/",
@@ -275,6 +271,10 @@ export const OtherProviderInfo = {
     "Telegram": {
       logo: `${StaticBaseUrl}/img/social_telegram.png`,
       url: "https://telegram.org/",
+    },
+    "Custom HTTP": {
+      logo: `${StaticBaseUrl}/img/email_default.png`,
+      url: "https://casdoor.org/docs/provider/notification/overview",
     },
   },
 };
@@ -909,7 +909,6 @@ export function getProviderTypeOptions(category) {
         {id: "Aliyun SMS", name: "Alibaba Cloud SMS"},
         {id: "Amazon SNS", name: "Amazon SNS"},
         {id: "Azure ACS", name: "Azure ACS"},
-        {id: "Custom HTTP SMS", name: "Custom HTTP SMS"},
         {id: "Infobip SMS", name: "Infobip SMS"},
         {id: "Tencent Cloud SMS", name: "Tencent Cloud SMS"},
         {id: "Baidu Cloud SMS", name: "Baidu Cloud SMS"},
@@ -928,7 +927,7 @@ export function getProviderTypeOptions(category) {
         {id: "Local File System", name: "Local File System"},
         {id: "AWS S3", name: "AWS S3"},
         {id: "MinIO", name: "MinIO"},
-        {id: "Aliyun OSS", name: "Aliyun OSS"},
+        {id: "Aliyun OSS", name: "Alibaba Cloud OSS"},
         {id: "Tencent Cloud COS", name: "Tencent Cloud COS"},
         {id: "Azure Blob", name: "Azure Blob"},
         {id: "Qiniu Cloud Kodo", name: "Qiniu Cloud Kodo"},
@@ -966,6 +965,7 @@ export function getProviderTypeOptions(category) {
   } else if (category === "Notification") {
     return ([
       {id: "Telegram", name: "Telegram"},
+      {id: "Custom HTTP", name: "Custom HTTP"},
     ]);
   } else {
     return [];
@@ -1170,9 +1170,9 @@ export function getTags(tags, urlPrefix = null) {
   return res;
 }
 
-export function getTag(color, text) {
+export function getTag(color, text, icon) {
   return (
-    <Tag color={color}>
+    <Tag color={color} icon={icon}>
       {text}
     </Tag>
   );
@@ -1253,4 +1253,14 @@ export function builtInObject(obj) {
     return false;
   }
   return obj.owner === "built-in" && BuiltInObjects.includes(obj.name);
+}
+
+export function getCurrencySymbol(currency) {
+  if (currency === "USD" || currency === "usd") {
+    return "$";
+  } else if (currency === "CNY" || currency === "cny") {
+    return "¥";
+  } else {
+    return currency;
+  }
 }

@@ -37,12 +37,13 @@ type Syncer struct {
 
 	Organization string `xorm:"varchar(100)" json:"organization"`
 	Type         string `xorm:"varchar(100)" json:"type"`
+	DatabaseType string `xorm:"varchar(100)" json:"databaseType"`
+	SslMode      string `xorm:"varchar(100)" json:"sslMode"`
 
 	Host             string         `xorm:"varchar(100)" json:"host"`
 	Port             int            `json:"port"`
 	User             string         `xorm:"varchar(100)" json:"user"`
 	Password         string         `xorm:"varchar(100)" json:"password"`
-	DatabaseType     string         `xorm:"varchar(100)" json:"databaseType"`
 	Database         string         `xorm:"varchar(100)" json:"database"`
 	Table            string         `xorm:"varchar(100)" json:"table"`
 	TableColumns     []*TableColumn `xorm:"mediumtext" json:"tableColumns"`
@@ -250,7 +251,7 @@ func (syncer *Syncer) getKey() string {
 	return key
 }
 
-func RunSyncer(syncer *Syncer) {
+func RunSyncer(syncer *Syncer) error {
 	syncer.initAdapter()
-	syncer.syncUsers()
+	return syncer.syncUsers()
 }
