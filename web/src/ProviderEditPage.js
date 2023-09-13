@@ -16,6 +16,8 @@ import React from "react";
 import {Button, Card, Checkbox, Col, Input, InputNumber, Row, Select, Switch} from "antd";
 import {LinkOutlined} from "@ant-design/icons";
 import * as ProviderBackend from "./backend/ProviderBackend";
+import * as OrganizationBackend from "./backend/OrganizationBackend";
+import * as CertBackend from "./backend/CertBackend";
 import * as Setting from "./Setting";
 import i18next from "i18next";
 import {authConfig} from "./auth/Auth";
@@ -24,7 +26,6 @@ import * as ProviderNotification from "./common/TestNotificationWidget";
 import * as ProviderEditTestSms from "./common/TestSmsWidget";
 import copy from "copy-to-clipboard";
 import {CaptchaPreview} from "./common/CaptchaPreview";
-import * as OrganizationBackend from "./backend/OrganizationBackend";
 import {CountryCodeSelect} from "./common/select/CountryCodeSelect";
 import * as Web3Auth from "./auth/Web3Auth";
 
@@ -39,6 +40,7 @@ class ProviderEditPage extends React.Component {
       providerName: props.match.params.providerName,
       owner: props.organizationName !== undefined ? props.organizationName : props.match.params.organizationName,
       provider: null,
+      certs: [],
       organizations: [],
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
     };
@@ -47,6 +49,7 @@ class ProviderEditPage extends React.Component {
   UNSAFE_componentWillMount() {
     this.getOrganizations();
     this.getProvider();
+    this.getCerts(this.state.owner);
   }
 
   getProvider() {
@@ -80,6 +83,17 @@ class ProviderEditPage extends React.Component {
     }
   }
 
+  getCerts(owner) {
+    CertBackend.getCerts(owner)
+      .then((res) => {
+        if (res.status === "ok") {
+          this.setState({
+            certs: res.data || [],
+          });
+        }
+      });
+  }
+
   parseProviderField(key, value) {
     if (["port"].includes(key)) {
       value = Setting.myParseInt(value);
@@ -91,6 +105,11 @@ class ProviderEditPage extends React.Component {
     value = this.parseProviderField(key, value);
 
     const provider = this.state.provider;
+    if (key === "owner" && provider["owner"] !== value) {
+      // the provider change the owner, reset the cert
+      provider["cert"] = "";
+      this.getCerts(value);
+    }
     provider[key] = value;
     this.setState({
       provider: provider,
@@ -182,6 +201,12 @@ class ProviderEditPage extends React.Component {
       } else {
         return Setting.getLabel(i18next.t("provider:Secret key"), i18next.t("provider:Secret key - Tooltip"));
       }
+    case "Notification":
+      if (provider.type === "Line") {
+        return Setting.getLabel(i18next.t("provider:Secret key"), i18next.t("provider:Secret key - Tooltip"));
+      } else {
+        return Setting.getLabel(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
+      }
     default:
       return Setting.getLabel(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
     }
@@ -272,12 +297,15 @@ class ProviderEditPage extends React.Component {
         tooltip = i18next.t("provider:Project Id - Tooltip");
       }
     } else if (provider.category === "Email") {
-      if (provider.type === "SUBMAIL") {
+      if (provider.type === "SUBMAIL" || provider.type === "Azure ACS") {
         text = i18next.t("provider:App ID");
         tooltip = i18next.t("provider:App ID - Tooltip");
       }
     } else if (provider.category === "Notification") {
-      if (provider.type === "Telegram") {
+      if (provider.type === "Viber") {
+        text = i18next.t("provider:Domain");
+        tooltip = i18next.t("provider:Domain - Tooltip");
+      } else if (provider.type === "Telegram" || provider.type === "DingTalk" || provider.type === "Pushover" || provider.type === "Pushbullet" || provider.type === "Slack" || provider.type === "Discord" || provider.type === "Line" || provider.type === "Matrix" || provider.type === "Rocket Chat") {
         text = i18next.t("provider:App Key");
         tooltip = i18next.t("provider:App Key - Tooltip");
       }
@@ -305,16 +333,25 @@ class ProviderEditPage extends React.Component {
     let text = "";
     let tooltip = "";
 
-    if (provider.type === "Telegram") {
+    if (provider.type === "Telegram" || provider.type === "Pushover" || provider.type === "Pushbullet" || provider.type === "Slack" || provider.type === "Discord" || provider.type === "Line" || provider.type === "Twitter" || provider.type === "Reddit" || provider.type === "Rocket Chat" || provider.type === "Viber") {
       text = i18next.t("provider:Chat ID");
       tooltip = i18next.t("provider:Chat ID - Tooltip");
-    } else if (provider.type === "Custom HTTP") {
+    } else if (provider.type === "Custom HTTP" || provider.type === "Lark" || provider.type === "Microsoft Teams" || provider.type === "Webpush" || provider.type === "Matrix") {
       text = i18next.t("provider:Endpoint");
       tooltip = i18next.t("provider:Endpoint - Tooltip");
+    } else if (provider.type === "DingTalk" || provider.type === "Bark") {
+      text = i18next.t("provider:Secret Key");
+      tooltip = i18next.t("provider:Secret Key - Tooltip");
     }
 
     if (text === "" && tooltip === "") {
-      return null;
+      return (
+        <React.Fragment>
+          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+            {Setting.getLabel("Test Notification", "Test Notification")} :
+          </Col>
+        </React.Fragment>
+      );
     } else {
       return (
         <React.Fragment>
@@ -406,7 +443,6 @@ class ProviderEditPage extends React.Component {
                 this.updateProviderField("type", "Twilio SMS");
               } else if (value === "Storage") {
                 this.updateProviderField("type", "AWS S3");
-                this.updateProviderField("domain", Setting.getFullServerUrl());
               } else if (value === "SAML") {
                 this.updateProviderField("type", "Keycloak");
               } else if (value === "Payment") {
@@ -590,19 +626,25 @@ class ProviderEditPage extends React.Component {
         }
         {
           (this.state.provider.category === "Captcha" && this.state.provider.type === "Default") ||
+          (this.state.provider.category === "Email" && this.state.provider.type === "Azure ACS") ||
           (this.state.provider.category === "Web3") ||
-          (this.state.provider.category === "Storage" && this.state.provider.type === "Local File System" || (this.state.provider.category === "Notification")) ? null : (
+          (this.state.provider.category === "Storage" && this.state.provider.type === "Local File System" ||
+          (this.state.provider.category === "Notification" && this.state.provider.type !== "Webpush" && this.state.provider.type !== "Line" && this.state.provider.type !== "Matrix" && this.state.provider.type !== "Twitter" && this.state.provider.type !== "Reddit" && this.state.provider.type !== "Rocket Chat" && this.state.provider.type !== "Viber")) ? null : (
               <React.Fragment>
-                <Row style={{marginTop: "20px"}} >
-                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                    {this.getClientIdLabel(this.state.provider)} :
-                  </Col>
-                  <Col span={22} >
-                    <Input value={this.state.provider.clientId} onChange={e => {
-                      this.updateProviderField("clientId", e.target.value);
-                    }} />
-                  </Col>
-                </Row>
+                {
+                  this.state.provider.type === "Line" ? null : (
+                    <Row style={{marginTop: "20px"}} >
+                      <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                        {this.getClientIdLabel(this.state.provider)} :
+                      </Col>
+                      <Col span={22} >
+                        <Input value={this.state.provider.clientId} onChange={e => {
+                          this.updateProviderField("clientId", e.target.value);
+                        }} />
+                      </Col>
+                    </Row>
+                  )
+                }
                 <Row style={{marginTop: "20px"}} >
                   <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                     {this.getClientSecretLabel(this.state.provider)} :
@@ -617,7 +659,7 @@ class ProviderEditPage extends React.Component {
             )
         }
         {
-          this.state.provider.category !== "Email" && this.state.provider.type !== "WeChat" && this.state.provider.type !== "Aliyun Captcha" && this.state.provider.type !== "WeChat Pay" ? null : (
+          this.state.provider.category !== "Email" && this.state.provider.type !== "WeChat" && this.state.provider.type !== "Aliyun Captcha" && this.state.provider.type !== "WeChat Pay" && this.state.provider.type !== "Twitter" && this.state.provider.type !== "Reddit" ? null : (
             <React.Fragment>
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
@@ -630,7 +672,7 @@ class ProviderEditPage extends React.Component {
                 </Col>
               </Row>
               {
-                this.state.provider.type === "WeChat Pay" ? null : (
+                (this.state.provider.type === "WeChat Pay") || (this.state.provider.category === "Email" && this.state.provider.type === "Azure ACS") ? null : (
                   <Row style={{marginTop: "20px"}} >
                     <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                       {this.getClientSecret2Label(this.state.provider)} :
@@ -783,6 +825,18 @@ class ProviderEditPage extends React.Component {
                   </Col>
                 </Row>
               ) : null}
+              {["Google Chat"].includes(this.state.provider.type) ? (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(i18next.t("provider:Metadata"), i18next.t("provider:Metadata - Tooltip"))} :
+                  </Col>
+                  <Col span={22}>
+                    <TextArea rows={4} value={this.state.provider.metadata} onChange={e => {
+                      this.updateProviderField("metadata", e.target.value);
+                    }} />
+                  </Col>
+                </Row>
+              ) : null}
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                   {Setting.getLabel(i18next.t("provider:Content"), i18next.t("provider:Content - Tooltip"))} :
@@ -813,26 +867,30 @@ class ProviderEditPage extends React.Component {
                   }} />
                 </Col>
               </Row>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("provider:Port"), i18next.t("provider:Port - Tooltip"))} :
-                </Col>
-                <Col span={22} >
-                  <InputNumber value={this.state.provider.port} onChange={value => {
-                    this.updateProviderField("port", value);
-                  }} />
-                </Col>
-              </Row>
-              <Row style={{marginTop: "20px"}} >
-                <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
-                  {Setting.getLabel(i18next.t("provider:Disable SSL"), i18next.t("provider:Disable SSL - Tooltip"))} :
-                </Col>
-                <Col span={1} >
-                  <Switch checked={this.state.provider.disableSsl} onChange={checked => {
-                    this.updateProviderField("disableSsl", checked);
-                  }} />
-                </Col>
-              </Row>
+              {["Azure ACS"].includes(this.state.provider.type) ? null : (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(i18next.t("provider:Port"), i18next.t("provider:Port - Tooltip"))} :
+                  </Col>
+                  <Col span={22} >
+                    <InputNumber value={this.state.provider.port} onChange={value => {
+                      this.updateProviderField("port", value);
+                    }} />
+                  </Col>
+                </Row>
+              )}
+              {["Azure ACS"].includes(this.state.provider.type) ? null : (
+                <Row style={{marginTop: "20px"}} >
+                  <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+                    {Setting.getLabel(i18next.t("provider:Disable SSL"), i18next.t("provider:Disable SSL - Tooltip"))} :
+                  </Col>
+                  <Col span={1} >
+                    <Switch checked={this.state.provider.disableSsl} onChange={checked => {
+                      this.updateProviderField("disableSsl", checked);
+                    }} />
+                  </Col>
+                </Row>
+              )}
               <Row style={{marginTop: "20px"}} >
                 <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
                   {Setting.getLabel(i18next.t("provider:Email title"), i18next.t("provider:Email title - Tooltip"))} :
@@ -862,9 +920,11 @@ class ProviderEditPage extends React.Component {
                     this.updateProviderField("receiver", e.target.value);
                   }} />
                 </Col>
-                <Button style={{marginLeft: "10px", marginBottom: "5px"}} type="primary" onClick={() => ProviderEditTestEmail.connectSmtpServer(this.state.provider)} >
-                  {i18next.t("provider:Test SMTP Connection")}
-                </Button>
+                {["Azure ACS"].includes(this.state.provider.type) ? null : (
+                  <Button style={{marginLeft: "10px", marginBottom: "5px"}} type="primary" onClick={() => ProviderEditTestEmail.connectSmtpServer(this.state.provider)} >
+                    {i18next.t("provider:Test SMTP Connection")}
+                  </Button>
+                )}
                 <Button style={{marginLeft: "10px", marginBottom: "5px"}} type="primary"
                   disabled={!Setting.isValidEmail(this.state.provider.receiver)}
                   onClick={() => ProviderEditTestEmail.sendTestEmail(this.state.provider, this.state.provider.receiver)} >
@@ -909,15 +969,15 @@ class ProviderEditPage extends React.Component {
                 <Col span={4} >
                   <Input.Group compact>
                     <CountryCodeSelect
-                      style={{width: "30%"}}
-                      value={this.state.provider.content}
+                      style={{width: "90px"}}
+                      initValue={this.state.provider.content}
                       onChange={(value) => {
                         this.updateProviderField("content", value);
                       }}
                       countryCodes={this.props.account.organization.countryCodes}
                     />
                     <Input value={this.state.provider.receiver}
-                      style={{width: "70%"}}
+                      style={{width: "150px"}}
                       placeholder = {i18next.t("user:Input your phone number")}
                       onChange={e => {
                         this.updateProviderField("receiver", e.target.value);
@@ -1042,9 +1102,11 @@ class ProviderEditPage extends React.Component {
                 {Setting.getLabel(i18next.t("general:Cert"), i18next.t("general:Cert - Tooltip"))} :
               </Col>
               <Col span={22} >
-                <Input value={this.state.provider.cert} onChange={e => {
-                  this.updateProviderField("cert", e.target.value);
-                }} />
+                <Select virtual={false} style={{width: "100%"}} value={this.state.provider.cert} onChange={(value => {this.updateProviderField("cert", value);})}>
+                  {
+                    this.state.certs.map((cert, index) => <Option key={index} value={cert.name}>{cert.name}</Option>)
+                  }
+                </Select>
               </Col>
             </Row>
           ) : null

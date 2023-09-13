@@ -18,9 +18,9 @@ import (
 	"strconv"
 
 	"github.com/casdoor/casdoor/proxy"
+	"github.com/casdoor/notify"
+	"github.com/casdoor/notify/service/telegram"
 	api "github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/nikoksr/notify"
-	"github.com/nikoksr/notify/service/telegram"
 )
 
 func NewTelegramProvider(apiToken string, chatIdStr string) (notify.Notifier, error) {
@@ -28,15 +28,18 @@ func NewTelegramProvider(apiToken string, chatIdStr string) (notify.Notifier, er
 	if err != nil {
 		return nil, err
 	}
-	t := &telegram.Telegram{}
-	t.SetClient(client)
+	telegramSrv := &telegram.Telegram{}
+	telegramSrv.SetClient(client)
 
 	chatId, err := strconv.ParseInt(chatIdStr, 10, 64)
 	if err != nil {
 		return nil, err
 	}
 
-	t.AddReceivers(chatId)
+	telegramSrv.AddReceivers(chatId)
 
-	return t, nil
+	notifier := notify.New()
+	notifier.UseServices(telegramSrv)
+
+	return notifier, nil
 }

@@ -6,14 +6,14 @@ require (
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/RobotsAndPencils/go-saml v0.0.0-20170520135329-fb13cb52a46b
 	github.com/alexedwards/argon2id v0.0.0-20211130144151-3585854a6387
-	github.com/aliyun/alibaba-cloud-sdk-go v1.62.188 // indirect
-	github.com/aws/aws-sdk-go v1.44.4
+	github.com/aws/aws-sdk-go v1.45.5
 	github.com/beego/beego v1.12.12
 	github.com/beevik/etree v1.1.0
 	github.com/casbin/casbin v1.9.1 // indirect
-	github.com/casbin/casbin/v2 v2.30.1
-	github.com/casdoor/go-sms-sender v0.12.0
+	github.com/casbin/casbin/v2 v2.37.0
+	github.com/casdoor/go-sms-sender v0.14.0
 	github.com/casdoor/gomail/v2 v2.0.1
+	github.com/casdoor/notify v0.43.0
 	github.com/casdoor/oss v1.3.0
 	github.com/casdoor/xorm-adapter/v3 v3.0.4
 	github.com/casvisor/casvisor-go-sdk v1.0.3
@@ -30,14 +30,13 @@ require (
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
 	github.com/go-webauthn/webauthn v0.6.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.3.1
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/lestrrat-go/jwx v1.2.21
 	github.com/lib/pq v1.10.9
 	github.com/lor00x/goldap v0.0.0-20180618054307-a546dffdd1a3
 	github.com/markbates/goth v1.75.2
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/nikoksr/notify v0.41.0
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/nyaruka/phonenumbers v1.1.5
 	github.com/pquerna/otp v1.4.0
@@ -60,10 +59,12 @@ require (
 	github.com/xorm-io/core v0.7.4
 	github.com/xorm-io/xorm v1.1.6
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	golang.org/x/crypto v0.11.0
-	golang.org/x/net v0.13.0
-	golang.org/x/oauth2 v0.10.0
+	golang.org/x/crypto v0.12.0
+	golang.org/x/net v0.14.0
+	golang.org/x/oauth2 v0.11.0
+	google.golang.org/api v0.138.0
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0
+	maunium.net/go/mautrix v0.16.0
 	modernc.org/sqlite v1.18.2
 )

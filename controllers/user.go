@@ -258,6 +258,13 @@ func (c *ApiController) UpdateUser() {
 		return
 	}
 
+	if c.Input().Get("allowEmpty") == "" {
+		if user.DisplayName == "" {
+			c.ResponseError(c.T("user:Display name cannot be empty"))
+			return
+		}
+	}
+
 	if msg := object.CheckUpdateUser(oldUser, &user, c.GetAcceptLanguage()); msg != "" {
 		c.ResponseError(msg)
 		return
@@ -441,6 +448,10 @@ func (c *ApiController) SetPassword() {
 	}
 
 	targetUser, err := object.GetUser(userId)
+	if targetUser == nil {
+		c.ResponseError(fmt.Sprintf(c.T("general:The user: %s doesn't exist"), userId))
+		return
+	}
 	if err != nil {
 		c.ResponseError(err.Error())
 		return

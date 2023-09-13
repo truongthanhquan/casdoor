@@ -57,6 +57,7 @@ type Application struct {
 	SignupItems         []*SignupItem   `xorm:"varchar(1000)" json:"signupItems"`
 	GrantTypes          []string        `xorm:"varchar(1000)" json:"grantTypes"`
 	OrganizationObj     *Organization   `xorm:"-" json:"organizationObj"`
+	CertPublicKey       string          `xorm:"-" json:"certPublicKey"`
 	Tags                []string        `xorm:"mediumtext" json:"tags"`
 	InvitationCodes     []string        `xorm:"varchar(200)" json:"invitationCodes"`
 
@@ -427,15 +428,14 @@ func (application *Application) GetId() string {
 }
 
 func (application *Application) IsRedirectUriValid(redirectUri string) bool {
-	isValid := false
-	for _, targetUri := range application.RedirectUris {
+	redirectUris := append([]string{"http://localhost:"}, application.RedirectUris...)
+	for _, targetUri := range redirectUris {
 		targetUriRegex := regexp.MustCompile(targetUri)
 		if targetUriRegex.MatchString(redirectUri) || strings.Contains(redirectUri, targetUri) {
-			isValid = true
-			break
+			return true
 		}
 	}
-	return isValid
+	return false
 }
 
 func IsOriginAllowed(origin string) (bool, error) {

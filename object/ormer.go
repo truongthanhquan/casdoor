@@ -18,11 +18,14 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"os"
+	"regexp"
 	"runtime"
 	"strings"
 
 	"github.com/beego/beego"
 	"github.com/casdoor/casdoor/conf"
+	"github.com/casdoor/casdoor/util"
 	xormadapter "github.com/casdoor/xorm-adapter/v3"
 	_ "github.com/denisenkom/go-mssqldb" // db = mssql
 	_ "github.com/go-sql-driver/mysql"   // db = mysql
@@ -65,6 +68,17 @@ func InitConfig() {
 }
 
 func InitAdapter() {
+	if conf.GetConfigString("driverName") == "" {
+		if !util.FileExist("conf/app.conf") {
+			dir, err := os.Getwd()
+			if err != nil {
+				panic(err)
+			}
+			dir = strings.ReplaceAll(dir, "\\", "/")
+			panic(fmt.Sprintf("The Casdoor config file: \"app.conf\" was not found, it should be placed at: \"%s/conf/app.conf\"", dir))
+		}
+	}
+
 	if createDatabase {
 		err := createDatabaseForPostgres(conf.GetConfigString("driverName"), conf.GetConfigDataSourceName(), conf.GetConfigString("dbName"))
 		if err != nil {
@@ -122,9 +136,14 @@ func NewAdapter(driverName string, dataSourceName string, dbName string) *Ormer 
 	return a
 }
 
+func refineDataSourceNameForPostgres(dataSourceName string) string {
+	reg := regexp.MustCompile(`dbname=[^ ]+\s*`)
+	return reg.ReplaceAllString(dataSourceName, "")
+}
+
 func createDatabaseForPostgres(driverName string, dataSourceName string, dbName string) error {
 	if driverName == "postgres" {
-		db, err := sql.Open(driverName, dataSourceName)
+		db, err := sql.Open(driverName, refineDataSourceNameForPostgres(dataSourceName))
 		if err != nil {
 			return err
 		}
@@ -134,6 +153,21 @@ func createDatabaseForPostgres(driverName string, dataSourceName string, dbName 
 		if err != nil {
 			if !strings.Contains(err.Error(), "already exists") {
 				return err
+			}
+		}
+		schema := util.GetValueFromDataSourceName("search_path", dataSourceName)
+		if schema != "" {
+			db, err = sql.Open(driverName, dataSourceName)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+
+			_, err = db.Exec(fmt.Sprintf("CREATE SCHEMA %s;", schema))
+			if err != nil {
+				if !strings.Contains(err.Error(), "already exists") {
+					return err
+				}
 			}
 		}
 
@@ -167,6 +201,12 @@ func (a *Ormer) open() {
 	engine, err := xorm.NewEngine(a.driverName, dataSourceName)
 	if err != nil {
 		panic(err)
+	}
+	if a.driverName == "postgres" {
+		schema := util.GetValueFromDataSourceName("search_path", dataSourceName)
+		if schema != "" {
+			engine.SetSchema(schema)
+		}
 	}
 
 	a.Engine = engine
