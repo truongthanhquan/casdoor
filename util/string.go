@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -186,32 +187,6 @@ func IsStringsEmpty(strs ...string) bool {
 	return false
 }
 
-func GetMaxLenStr(strs ...string) string {
-	m := 0
-	i := 0
-	for j, str := range strs {
-		l := len(str)
-		if l > m {
-			m = l
-			i = j
-		}
-	}
-	return strs[i]
-}
-
-func GetMinLenStr(strs ...string) string {
-	m := int(^uint(0) >> 1)
-	i := 0
-	for j, str := range strs {
-		l := len(str)
-		if l < m {
-			m = l
-			i = j
-		}
-	}
-	return strs[i]
-}
-
 func ReadStringFromPath(path string) string {
 	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
@@ -314,4 +289,14 @@ func ParseIdToString(input interface{}) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported id type: %T", input)
 	}
+}
+
+func GetValueFromDataSourceName(key string, dataSourceName string) string {
+	reg := regexp.MustCompile(key + "=([^ ]+)")
+	matches := reg.FindStringSubmatch(dataSourceName)
+	if len(matches) >= 2 {
+		return matches[1]
+	}
+
+	return ""
 }

@@ -88,6 +88,7 @@ p, *, *, *, /api/metrics, *, *
 p, *, *, GET, /api/get-pricing, *, *
 p, *, *, GET, /api/get-plan, *, *
 p, *, *, GET, /api/get-subscription, *, *
+p, *, *, GET, /api/get-provider, *, *
 p, *, *, GET, /api/get-organization-names, *, *
 `
 
@@ -118,6 +119,10 @@ func IsAllowed(subOwner string, subName string, method string, urlPath string, o
 	user, err := object.GetUser(util.GetId(subOwner, subName))
 	if err != nil {
 		panic(err)
+	}
+
+	if subOwner == "app" {
+		return true
 	}
 
 	if user != nil && user.IsAdmin && (subOwner == objOwner || (objOwner == "admin")) {

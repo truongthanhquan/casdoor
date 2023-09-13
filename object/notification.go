@@ -18,12 +18,12 @@ import (
 	"context"
 
 	"github.com/casdoor/casdoor/notification"
-	"github.com/nikoksr/notify"
+	"github.com/casdoor/notify"
 )
 
 func getNotificationClient(provider *Provider) (notify.Notifier, error) {
 	var client notify.Notifier
-	client, err := notification.GetNotificationProvider(provider.Type, provider.AppId, provider.Receiver, provider.Method, provider.Title)
+	client, err := notification.GetNotificationProvider(provider.Type, provider.ClientId, provider.ClientSecret, provider.ClientId2, provider.ClientSecret2, provider.AppId, provider.Receiver, provider.Method, provider.Title, provider.Metadata)
 	if err != nil {
 		return nil, err
 	}

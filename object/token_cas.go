@@ -77,9 +77,9 @@ type CasUserAttributes struct {
 }
 
 type CasNamedAttribute struct {
-	XMLName xml.Name `xml:"cas:attribute" json:"-"`
-	Name    string   `xml:"name,attr,omitempty"`
-	Value   string   `xml:",innerxml"`
+	XMLName xml.Name    `xml:"cas:attribute" json:"-"`
+	Name    string      `xml:"name,attr,omitempty"`
+	Value   interface{} `xml:",innerxml"`
 }
 
 type CasAnyAttribute struct {
@@ -185,38 +185,52 @@ func StoreCasTokenForProxyTicket(token *CasAuthenticationSuccess, targetService,
 }
 
 func GenerateCasToken(userId string, service string) (string, error) {
-	if user, err := GetUser(userId); err != nil {
+	user, err := GetUser(userId)
+	if err != nil {
 		return "", err
-	} else if user != nil {
-		authenticationSuccess := CasAuthenticationSuccess{
-			User: user.Name,
-			Attributes: &CasAttributes{
-				AuthenticationDate: time.Now(),
-				UserAttributes:     &CasUserAttributes{},
-			},
-			ProxyGrantingTicket: fmt.Sprintf("PGTIOU-%s", util.GenerateId()),
-		}
-		data, _ := json.Marshal(user)
-		tmp := map[string]string{}
-		json.Unmarshal(data, &tmp)
-		for k, v := range tmp {
-			if v != "" {
-				authenticationSuccess.Attributes.UserAttributes.Attributes = append(authenticationSuccess.Attributes.UserAttributes.Attributes, &CasNamedAttribute{
-					Name:  k,
-					Value: v,
-				})
-			}
-		}
-		st := fmt.Sprintf("ST-%d", rand.Int())
-		stToServiceResponse.Store(st, &CasAuthenticationSuccessWrapper{
-			AuthenticationSuccess: &authenticationSuccess,
-			Service:               service,
-			UserId:                userId,
-		})
-		return st, nil
-	} else {
-		return "", fmt.Errorf("invalid user Id")
 	}
+	if user == nil {
+		return "", fmt.Errorf("The user: %s doesn't exist", userId)
+	}
+
+	user, _ = GetMaskedUser(user, false)
+
+	authenticationSuccess := CasAuthenticationSuccess{
+		User: user.Name,
+		Attributes: &CasAttributes{
+			AuthenticationDate: time.Now(),
+			UserAttributes:     &CasUserAttributes{},
+		},
+		ProxyGrantingTicket: fmt.Sprintf("PGTIOU-%s", util.GenerateId()),
+	}
+
+	data, err := json.Marshal(user)
+	if err != nil {
+		return "", err
+	}
+
+	tmp := map[string]interface{}{}
+	err = json.Unmarshal(data, &tmp)
+	if err != nil {
+		return "", err
+	}
+
+	for k, v := range tmp {
+		if v != "" {
+			authenticationSuccess.Attributes.UserAttributes.Attributes = append(authenticationSuccess.Attributes.UserAttributes.Attributes, &CasNamedAttribute{
+				Name:  k,
+				Value: v,
+			})
+		}
+	}
+
+	st := fmt.Sprintf("ST-%d", rand.Int())
+	stToServiceResponse.Store(st, &CasAuthenticationSuccessWrapper{
+		AuthenticationSuccess: &authenticationSuccess,
+		Service:               service,
+		UserId:                userId,
+	})
+	return st, nil
 }
 
 // GetValidationBySaml
