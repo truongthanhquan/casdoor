@@ -20,6 +20,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -59,7 +60,7 @@ func tokenToResponse(token *object.Token) *Response {
 func (c *ApiController) HandleLoggedIn(application *object.Application, user *object.User, form *form.AuthForm) (resp *Response) {
 	userId := user.GetId()
 
-	allowed, err := object.CheckAccessPermission(userId, application)
+	allowed, err := object.CheckLoginPermission(userId, application)
 	if err != nil {
 		c.ResponseError(err.Error(), nil)
 		return
@@ -614,11 +615,16 @@ func (c *ApiController) Login() {
 						return
 					}
 
+					userId := userInfo.Id
+					if userId == "" {
+						userId = util.GenerateId()
+					}
+
 					user = &object.User{
 						Owner:             application.Organization,
 						Name:              userInfo.Username,
 						CreatedTime:       util.GetCurrentTime(),
-						Id:                util.GenerateId(),
+						Id:                userId,
 						Type:              "normal-user",
 						DisplayName:       userInfo.DisplayName,
 						Avatar:            userInfo.AvatarUrl,
@@ -895,4 +901,17 @@ func (c *ApiController) GetCaptchaStatus() {
 		captchaEnabled = true
 	}
 	c.ResponseOk(captchaEnabled)
+}
+
+// Callback
+// @Title Callback
+// @Tag Callback API
+// @Description Get Login Error Counts
+// @router /api/Callback [post]
+func (c *ApiController) Callback() {
+	code := c.GetString("code")
+	state := c.GetString("state")
+
+	frontendCallbackUrl := fmt.Sprintf("/callback?code=%s&state=%s", code, state)
+	c.Ctx.Redirect(http.StatusFound, frontendCallbackUrl)
 }

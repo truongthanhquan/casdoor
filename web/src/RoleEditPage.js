@@ -14,11 +14,12 @@
 
 import React from "react";
 import {Button, Card, Col, Input, Row, Select, Switch} from "antd";
-import * as RoleBackend from "./backend/RoleBackend";
 import * as OrganizationBackend from "./backend/OrganizationBackend";
+import * as UserBackend from "./backend/UserBackend";
+import * as GroupBackend from "./backend/GroupBackend";
+import * as RoleBackend from "./backend/RoleBackend";
 import * as Setting from "./Setting";
 import i18next from "i18next";
-import * as UserBackend from "./backend/UserBackend";
 
 class RoleEditPage extends React.Component {
   constructor(props) {
@@ -30,6 +31,7 @@ class RoleEditPage extends React.Component {
       role: null,
       organizations: [],
       users: [],
+      groups: [],
       roles: [],
       mode: props.location.mode !== undefined ? props.location.mode : "edit",
     };
@@ -57,6 +59,7 @@ class RoleEditPage extends React.Component {
         });
 
         this.getUsers(this.state.organizationName);
+        this.getGroups(this.state.organizationName);
         this.getRoles(this.state.organizationName);
       });
   }
@@ -80,6 +83,20 @@ class RoleEditPage extends React.Component {
 
         this.setState({
           users: res.data,
+        });
+      });
+  }
+
+  getGroups(organizationName) {
+    GroupBackend.getGroups(organizationName)
+      .then((res) => {
+        if (res.status === "error") {
+          Setting.showMessage("error", res.msg);
+          return;
+        }
+
+        this.setState({
+          groups: res.data,
         });
       });
   }
@@ -178,6 +195,17 @@ class RoleEditPage extends React.Component {
         </Row>
         <Row style={{marginTop: "20px"}} >
           <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
+            {Setting.getLabel(i18next.t("role:Sub groups"), i18next.t("role:Sub groups - Tooltip"))} :
+          </Col>
+          <Col span={22} >
+            <Select virtual={false} mode="multiple" style={{width: "100%"}} value={this.state.role.groups}
+              onChange={(value => {this.updateRoleField("groups", value);})}
+              options={this.state.groups.map((group) => Setting.getOption(`${group.owner}/${group.name}`, `${group.owner}/${group.name}`))}
+            />
+          </Col>
+        </Row>
+        <Row style={{marginTop: "20px"}} >
+          <Col style={{marginTop: "5px"}} span={(Setting.isMobile()) ? 22 : 2}>
             {Setting.getLabel(i18next.t("role:Sub roles"), i18next.t("role:Sub roles - Tooltip"))} :
           </Col>
           <Col span={22} >
@@ -212,7 +240,7 @@ class RoleEditPage extends React.Component {
     );
   }
 
-  submitRoleEdit(willExist) {
+  submitRoleEdit(exitAfterSave) {
     const role = Setting.deepCopy(this.state.role);
     RoleBackend.updateRole(this.state.organizationName, this.state.roleName, role)
       .then((res) => {
@@ -222,7 +250,7 @@ class RoleEditPage extends React.Component {
             roleName: this.state.role.name,
           });
 
-          if (willExist) {
+          if (exitAfterSave) {
             this.props.history.push("/roles");
           } else {
             this.props.history.push(`/roles/${this.state.role.owner}/${encodeURIComponent(this.state.role.name)}`);

@@ -15,6 +15,7 @@
 package object
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/casdoor/casdoor/conf"
@@ -60,10 +61,6 @@ type PermissionRule struct {
 }
 
 const builtInAvailableField = 5 // Casdoor built-in adapter, use V5 to filter permission, so has 5 available field
-
-func (p *Permission) GetId() string {
-	return util.GetId(p.Owner, p.Name)
-}
 
 func GetPermissionCount(owner, field, value string) (int64, error) {
 	session := GetSession(owner, -1, -1, field, value, "", "")
@@ -153,6 +150,24 @@ func UpdatePermission(id string, permission *Permission) (bool, error) {
 		return false, nil
 	}
 
+	if permission.ResourceType == "Application" {
+		model, err := GetModelEx(util.GetId(owner, permission.Model))
+		if err != nil {
+			return false, err
+		} else if model == nil {
+			return false, fmt.Errorf("the model: %s for permission: %s is not found", permission.Model, permission.GetId())
+		}
+
+		modelCfg, err := getModelCfg(model)
+		if err != nil {
+			return false, err
+		}
+
+		if len(strings.Split(modelCfg["p"], ",")) != 3 {
+			return false, fmt.Errorf("the model: %s for permission: %s is not valid, Casbin model's [policy_defination] section should have 3 elements", permission.Model, permission.GetId())
+		}
+	}
+
 	affected, err := ormer.Engine.ID(core.PK{owner, name}).AllCols().Update(permission)
 	if err != nil {
 		return false, err
@@ -221,16 +236,15 @@ func AddPermissionsInBatch(permissions []*Permission) bool {
 	}
 
 	affected := false
-	for i := 0; i < (len(permissions)-1)/batchSize+1; i++ {
-		start := i * batchSize
-		end := (i + 1) * batchSize
+	for i := 0; i < len(permissions); i += batchSize {
+		start := i
+		end := i + batchSize
 		if end > len(permissions) {
 			end = len(permissions)
 		}
 
 		tmp := permissions[start:end]
-		// TODO: save to log instead of standard output
-		// fmt.Printf("Add Permissions: [%d - %d].\n", start, end)
+		fmt.Printf("The syncer adds permissions: [%d - %d]\n", start, end)
 		if AddPermissions(tmp) {
 			affected = true
 		}
@@ -262,9 +276,59 @@ func DeletePermission(permission *Permission) (bool, error) {
 	return affected != 0, nil
 }
 
-func GetPermissionsAndRolesByUser(userId string) ([]*Permission, []*Role, error) {
+func getPermissionsByUser(userId string) ([]*Permission, error) {
 	permissions := []*Permission{}
 	err := ormer.Engine.Where("users like ?", "%"+userId+"\"%").Find(&permissions)
+	if err != nil {
+		return permissions, err
+	}
+
+	res := []*Permission{}
+	for _, permission := range permissions {
+		if util.InSlice(permission.Users, userId) {
+			res = append(res, permission)
+		}
+	}
+
+	return res, nil
+}
+
+func GetPermissionsByRole(roleId string) ([]*Permission, error) {
+	permissions := []*Permission{}
+	err := ormer.Engine.Where("roles like ?", "%"+roleId+"\"%").Find(&permissions)
+	if err != nil {
+		return permissions, err
+	}
+
+	res := []*Permission{}
+	for _, permission := range permissions {
+		if util.InSlice(permission.Roles, roleId) {
+			res = append(res, permission)
+		}
+	}
+
+	return res, nil
+}
+
+func GetPermissionsByResource(resourceId string) ([]*Permission, error) {
+	permissions := []*Permission{}
+	err := ormer.Engine.Where("resources like ?", "%"+resourceId+"\"%").Find(&permissions)
+	if err != nil {
+		return permissions, err
+	}
+
+	res := []*Permission{}
+	for _, permission := range permissions {
+		if util.InSlice(permission.Resources, resourceId) {
+			res = append(res, permission)
+		}
+	}
+
+	return res, nil
+}
+
+func getPermissionsAndRolesByUser(userId string) ([]*Permission, []*Role, error) {
+	permissions, err := getPermissionsByUser(userId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -281,14 +345,13 @@ func GetPermissionsAndRolesByUser(userId string) ([]*Permission, []*Role, error)
 
 	permFromRoles := []*Permission{}
 
-	roles, err := GetRolesByUser(userId)
+	roles, err := getRolesByUser(userId)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	for _, role := range roles {
-		perms := []*Permission{}
-		err := ormer.Engine.Where("roles like ?", "%"+role.GetId()+"\"%").Find(&perms)
+		perms, err := GetPermissionsByRole(role.GetId())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -304,26 +367,6 @@ func GetPermissionsAndRolesByUser(userId string) ([]*Permission, []*Role, error)
 	}
 
 	return permissions, roles, nil
-}
-
-func GetPermissionsByRole(roleId string) ([]*Permission, error) {
-	permissions := []*Permission{}
-	err := ormer.Engine.Where("roles like ?", "%"+roleId+"\"%").Find(&permissions)
-	if err != nil {
-		return permissions, err
-	}
-
-	return permissions, nil
-}
-
-func GetPermissionsByResource(resourceId string) ([]*Permission, error) {
-	permissions := []*Permission{}
-	err := ormer.Engine.Where("resources like ?", "%"+resourceId+"\"%").Find(&permissions)
-	if err != nil {
-		return permissions, err
-	}
-
-	return permissions, nil
 }
 
 func GetPermissionsBySubmitter(owner string, submitter string) ([]*Permission, error) {
@@ -344,20 +387,6 @@ func GetPermissionsByModel(owner string, model string) ([]*Permission, error) {
 	}
 
 	return permissions, nil
-}
-
-func ContainsAsterisk(userId string, users []string) bool {
-	containsAsterisk := false
-	group, _ := util.GetOwnerAndNameFromId(userId)
-	for _, user := range users {
-		permissionGroup, permissionUserName := util.GetOwnerAndNameFromId(user)
-		if permissionGroup == group && permissionUserName == "*" {
-			containsAsterisk = true
-			break
-		}
-	}
-
-	return containsAsterisk
 }
 
 func GetMaskedPermissions(permissions []*Permission) []*Permission {
@@ -388,4 +417,28 @@ func GroupPermissionsByModelAdapter(permissions []*Permission) map[string][]stri
 	}
 
 	return m
+}
+
+func (p *Permission) GetId() string {
+	return util.GetId(p.Owner, p.Name)
+}
+
+func (p *Permission) isUserHit(name string) bool {
+	targetOrg, targetName := util.GetOwnerAndNameFromId(name)
+	for _, user := range p.Users {
+		userOrg, userName := util.GetOwnerAndNameFromId(user)
+		if userOrg == targetOrg && (userName == "*" || userName == targetName) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Permission) isResourceHit(name string) bool {
+	for _, resource := range p.Resources {
+		if resource == "*" || resource == name {
+			return true
+		}
+	}
+	return false
 }
