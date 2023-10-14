@@ -350,7 +350,7 @@ func CheckUserPermission(requestUserId, userId string, strict bool, lang string)
 	return hasPermission, fmt.Errorf(i18n.Translate(lang, "auth:Unauthorized operation"))
 }
 
-func CheckAccessPermission(userId string, application *Application) (bool, error) {
+func CheckLoginPermission(userId string, application *Application) (bool, error) {
 	var err error
 	if userId == "built-in/admin" {
 		return true, nil
@@ -361,32 +361,57 @@ func CheckAccessPermission(userId string, application *Application) (bool, error
 		return false, err
 	}
 
-	allowed := true
+	allowPermissionCount := 0
+	denyPermissionCount := 0
+	allowCount := 0
+	denyCount := 0
 	for _, permission := range permissions {
-		if !permission.IsEnabled {
+		if !permission.IsEnabled || permission.ResourceType != "Application" || !permission.isResourceHit(application.Name) {
 			continue
 		}
 
-		isHit := false
-		for _, resource := range permission.Resources {
-			if application.Name == resource {
-				isHit = true
-				break
+		if !permission.isUserHit(userId) {
+			if permission.Effect == "Allow" {
+				allowPermissionCount += 1
+			} else {
+				denyPermissionCount += 1
 			}
+			continue
 		}
 
-		if isHit {
-			containsAsterisk := ContainsAsterisk(userId, permission.Users)
-			if containsAsterisk {
-				return true, err
+		enforcer := getPermissionEnforcer(permission)
+
+		var isAllowed bool
+		isAllowed, err = enforcer.Enforce(userId, application.Name, "Read")
+		if err != nil {
+			return false, err
+		}
+
+		if isAllowed {
+			if permission.Effect == "Allow" {
+				allowCount += 1
 			}
-			enforcer := getPermissionEnforcer(permission)
-			if allowed, err = enforcer.Enforce(userId, application.Name, "read"); allowed {
-				return allowed, err
+		} else {
+			if permission.Effect == "Deny" {
+				denyCount += 1
 			}
 		}
 	}
-	return allowed, err
+
+	// Deny-override, if one deny is found, then deny
+	if denyCount > 0 {
+		return false, nil
+	} else if allowCount > 0 {
+		return true, nil
+	}
+
+	// For no-allow and no-deny condition
+	// If only allow permissions exist, we suppose it's Deny-by-default, aka no-allow means deny
+	// Otherwise, it's Allow-by-default, aka no-deny means allow
+	if allowPermissionCount > 0 && denyPermissionCount == 0 {
+		return false, nil
+	}
+	return true, nil
 }
 
 func CheckUsername(username string, lang string) string {

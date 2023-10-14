@@ -77,9 +77,9 @@ type CasUserAttributes struct {
 }
 
 type CasNamedAttribute struct {
-	XMLName xml.Name    `xml:"cas:attribute" json:"-"`
-	Name    string      `xml:"name,attr,omitempty"`
-	Value   interface{} `xml:",innerxml"`
+	XMLName xml.Name `xml:"cas:attribute" json:"-"`
+	Name    string   `xml:"name,attr,omitempty"`
+	Value   string   `xml:",innerxml"`
 }
 
 type CasAnyAttribute struct {
@@ -216,10 +216,15 @@ func GenerateCasToken(userId string, service string) (string, error) {
 	}
 
 	for k, v := range tmp {
-		if v != "" {
+		value := fmt.Sprintf("%v", v)
+		if value == "<nil>" || value == "[]" || value == "map[]" {
+			value = ""
+		}
+
+		if value != "" {
 			authenticationSuccess.Attributes.UserAttributes.Attributes = append(authenticationSuccess.Attributes.UserAttributes.Attributes, &CasNamedAttribute{
 				Name:  k,
-				Value: v,
+				Value: value,
 			})
 		}
 	}
@@ -279,6 +284,10 @@ func GetValidationBySaml(samlRequest string, host string) (string, string, error
 	cert, err := getCertByApplication(application)
 	if err != nil {
 		return "", "", err
+	}
+
+	if cert.Certificate == "" {
+		return "", "", fmt.Errorf("the certificate field should not be empty for the cert: %v", cert)
 	}
 
 	block, _ := pem.Decode([]byte(cert.Certificate))

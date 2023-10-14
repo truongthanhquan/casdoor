@@ -277,7 +277,10 @@ class PermissionEditPage extends React.Component {
           <Col span={22} >
             <Select virtual={false} mode="multiple" style={{width: "100%"}} value={this.state.permission.users}
               onChange={(value => {this.updatePermissionField("users", value);})}
-              options={this.state.users.map((user) => Setting.getOption(`${user.owner}/${user.name}`, `${user.owner}/${user.name}`))}
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.users.map((user) => Setting.getOption(`${user.owner}/${user.name}`, `${user.owner}/${user.name}`)),
+              ]}
             />
           </Col>
         </Row>
@@ -288,7 +291,10 @@ class PermissionEditPage extends React.Component {
           <Col span={22} >
             <Select virtual={false} mode="multiple" style={{width: "100%"}} value={this.state.permission.groups}
               onChange={(value => {this.updatePermissionField("groups", value);})}
-              options={this.state.groups.map((group) => Setting.getOption(`${group.owner}/${group.name}`, `${group.owner}/${group.name}`))}
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.groups.map((group) => Setting.getOption(`${group.owner}/${group.name}`, `${group.owner}/${group.name}`)),
+              ]}
             />
           </Col>
         </Row>
@@ -299,8 +305,11 @@ class PermissionEditPage extends React.Component {
           <Col span={22} >
             <Select disabled={!this.hasRoleDefinition(this.state.model)} virtual={false} mode="multiple" style={{width: "100%"}} value={this.state.permission.roles}
               onChange={(value => {this.updatePermissionField("roles", value);})}
-              options={this.state.roles.filter(roles => (roles.owner !== this.state.roles.owner || roles.name !== this.state.roles.name)).map((permission) => Setting.getOption(`${permission.owner}/${permission.name}`, `${permission.owner}/${permission.name}`))
-              } />
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.roles.filter(roles => (roles.owner !== this.state.roles.owner || roles.name !== this.state.roles.name)).map((permission) => Setting.getOption(`${permission.owner}/${permission.name}`, `${permission.owner}/${permission.name}`)),
+              ]}
+            />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
@@ -312,8 +321,11 @@ class PermissionEditPage extends React.Component {
               onChange={(value => {
                 this.updatePermissionField("domains", value);
               })}
-              options={this.state.permission.domains.map((domain) => Setting.getOption(domain, domain))
-              } />
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.permission.domains.map((domain) => Setting.getOption(domain, domain)),
+              ]}
+            />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
@@ -340,8 +352,11 @@ class PermissionEditPage extends React.Component {
           <Col span={22} >
             <Select virtual={false} mode={(this.state.permission.resourceType === "Custom") ? "tags" : "multiple"} style={{width: "100%"}} value={this.state.permission.resources}
               onChange={(value => {this.updatePermissionField("resources", value);})}
-              options={this.state.resources.map((resource) => Setting.getOption(`${resource.name}`, `${resource.name}`))
-              } />
+              options={[
+                Setting.getOption(i18next.t("organization:All"), "*"),
+                ...this.state.resources.map((resource) => Setting.getOption(`${resource.name}`, `${resource.name}`)),
+              ]}
+            />
           </Col>
         </Row>
         <Row style={{marginTop: "20px"}} >
@@ -444,7 +459,7 @@ class PermissionEditPage extends React.Component {
     );
   }
 
-  submitPermissionEdit(willExist) {
+  submitPermissionEdit(exitAfterSave) {
     if (this.state.permission.users.length === 0 && this.state.permission.roles.length === 0) {
       Setting.showMessage("error", "The users and roles cannot be empty at the same time");
       return;
@@ -475,7 +490,7 @@ class PermissionEditPage extends React.Component {
             permissionName: this.state.permission.name,
           });
 
-          if (willExist) {
+          if (exitAfterSave) {
             this.props.history.push("/permissions");
           } else {
             this.props.history.push(`/permissions/${this.state.permission.owner}/${encodeURIComponent(this.state.permission.name)}`);
