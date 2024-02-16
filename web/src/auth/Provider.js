@@ -100,6 +100,10 @@ const authInfo = {
     scope: "user.read",
     endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
   },
+  AzureADB2C: {
+    scope: "openid",
+    endpoint: "https://tenant.b2clogin.com/tenant.onmicrosoft.com/userflow/oauth2/v2.0/authorize",
+  },
   Slack: {
     scope: "users:read",
     endpoint: "https://slack.com/oauth/authorize",
@@ -278,7 +282,7 @@ const authInfo = {
     endpoint: "https://id.twitch.tv/oauth2/authorize",
   },
   Twitter: {
-    scope: "users.read",
+    scope: "users.read%20tweet.read",
     endpoint: "https://twitter.com/i/oauth2/authorize",
   },
   Typetalk: {
@@ -373,7 +377,7 @@ export function getProviderLogoWidget(provider) {
   }
 }
 
-export function getAuthUrl(application, provider, method) {
+export function getAuthUrl(application, provider, method, code) {
   if (application === null || provider === null) {
     return "";
   }
@@ -382,7 +386,7 @@ export function getAuthUrl(application, provider, method) {
   let redirectUri = `${window.location.origin}/callback`;
   const scope = authInfo[provider.type].scope;
 
-  const isShortState = provider.type === "WeChat" && navigator.userAgent.includes("MicroMessenger");
+  const isShortState = (provider.type === "WeChat" && navigator.userAgent.includes("MicroMessenger")) || (provider.type === "Twitter");
   const state = Util.getStateFromQueryParams(application.name, provider.name, method, isShortState);
   const codeChallenge = "P3S-a7dr8bgM4bF6vOyiKkKETDl16rcAzao9F8UIL1Y"; // SHA256(Base64-URL-encode("casdoor-verifier"))
 
@@ -406,12 +410,17 @@ export function getAuthUrl(application, provider, method) {
     || provider.type === "Twitch" || provider.type === "Typetalk" || provider.type === "Uber" || provider.type === "VK" || provider.type === "Wepay"
     || provider.type === "Xero" || provider.type === "Yahoo" || provider.type === "Yammer" || provider.type === "Yandex" || provider.type === "Zoom") {
     return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}`;
+  } else if (provider.type === "AzureADB2C") {
+    return `https://${provider.domain}.b2clogin.com/${provider.domain}.onmicrosoft.com/${provider.appId}/oauth2/v2.0/authorize?client_id=${provider.clientId}&nonce=defaultNonce&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code&state=${state}&prompt=login`;
   } else if (provider.type === "DingTalk") {
     return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&prompt=consent&state=${state}`;
   } else if (provider.type === "WeChat") {
     if (navigator.userAgent.includes("MicroMessenger")) {
       return `${authInfo[provider.type].mpEndpoint}?appid=${provider.clientId2}&redirect_uri=${redirectUri}&state=${state}&scope=${authInfo[provider.type].mpScope}&response_type=code#wechat_redirect`;
     } else {
+      if (provider.clientId2 && provider?.disableSsl && provider?.signName === "media") {
+        return `${window.location.origin}/callback?state=${state}&code=${"wechat_oa:" + code}`;
+      }
       return `${endpoint}?appid=${provider.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}#wechat_redirect`;
     }
   } else if (provider.type === "WeCom") {

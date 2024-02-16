@@ -72,6 +72,10 @@ func GetTruncatedPath(provider *Provider, fullFilePath string, limit int) string
 }
 
 func GetUploadFileUrl(provider *Provider, fullFilePath string, hasTimestamp bool) (string, string) {
+	if provider.Domain != "" && !strings.HasPrefix(provider.Domain, "http://") && !strings.HasPrefix(provider.Domain, "https://") {
+		provider.Domain = fmt.Sprintf("https://%s", provider.Domain)
+	}
+
 	escapedPath := util.UrlJoin(provider.PathPrefix, fullFilePath)
 	objectKey := util.UrlJoin(util.GetUrlPath(provider.Domain), escapedPath)
 
@@ -79,9 +83,6 @@ func GetUploadFileUrl(provider *Provider, fullFilePath string, hasTimestamp bool
 	if provider.Type != "Local File System" {
 		// provider.Domain = "https://cdn.casbin.com/casdoor/"
 		host = util.GetUrlHost(provider.Domain)
-		if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
-			host = fmt.Sprintf("https://%s", host)
-		}
 	} else {
 		// provider.Domain = "http://localhost:8000" or "https://door.casdoor.com"
 		host = util.UrlJoin(provider.Domain, "/files")
@@ -90,9 +91,12 @@ func GetUploadFileUrl(provider *Provider, fullFilePath string, hasTimestamp bool
 		host = util.UrlJoin(host, provider.Bucket)
 	}
 
-	fileUrl := util.UrlJoin(host, escapePath(objectKey))
+	fileUrl := ""
+	if host != "" {
+		fileUrl = util.UrlJoin(host, escapePath(objectKey))
+	}
 
-	if hasTimestamp {
+	if fileUrl != "" && hasTimestamp {
 		fileUrl = fmt.Sprintf("%s?t=%s", fileUrl, util.GetCurrentUnixTime())
 	}
 
@@ -112,7 +116,10 @@ func getStorageProvider(provider *Provider, lang string) (oss.StorageInterface, 
 
 	if provider.Domain == "" {
 		provider.Domain = storageProvider.GetEndpoint()
-		UpdateProvider(provider.GetId(), provider)
+		_, err := UpdateProvider(provider.GetId(), provider)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return storageProvider, nil
@@ -126,7 +133,12 @@ func uploadFile(provider *Provider, fullFilePath string, fileBuffer *bytes.Buffe
 
 	fileUrl, objectKey := GetUploadFileUrl(provider, fullFilePath, true)
 
-	_, err = storageProvider.Put(objectKey, fileBuffer)
+	objectKeyRefined := objectKey
+	if provider.Type == "Google Cloud Storage" {
+		objectKeyRefined = strings.TrimPrefix(objectKeyRefined, "/")
+	}
+
+	_, err = storageProvider.Put(objectKeyRefined, fileBuffer)
 	if err != nil {
 		return "", "", err
 	}

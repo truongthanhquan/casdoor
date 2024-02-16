@@ -39,13 +39,13 @@ func (c *ApiController) GetCerts() {
 	sortOrder := c.Input().Get("sortOrder")
 
 	if limit == "" || page == "" {
-		maskedCerts, err := object.GetMaskedCerts(object.GetCerts(owner))
+		certs, err := object.GetMaskedCerts(object.GetCerts(owner))
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
 		}
 
-		c.ResponseOk(maskedCerts)
+		c.ResponseOk(certs)
 	} else {
 		limit := util.ParseInt(limit)
 		count, err := object.GetCertCount(owner, field, value)
@@ -65,13 +65,13 @@ func (c *ApiController) GetCerts() {
 	}
 }
 
-// GetGlobleCerts
-// @Title GetGlobleCerts
+// GetGlobalCerts
+// @Title GetGlobalCerts
 // @Tag Cert API
 // @Description get globle certs
 // @Success 200 {array} object.Cert The Response object
-// @router /get-globle-certs [get]
-func (c *ApiController) GetGlobleCerts() {
+// @router /get-global-certs [get]
+func (c *ApiController) GetGlobalCerts() {
 	limit := c.Input().Get("pageSize")
 	page := c.Input().Get("p")
 	field := c.Input().Get("field")
@@ -80,13 +80,13 @@ func (c *ApiController) GetGlobleCerts() {
 	sortOrder := c.Input().Get("sortOrder")
 
 	if limit == "" || page == "" {
-		maskedCerts, err := object.GetMaskedCerts(object.GetGlobleCerts())
+		certs, err := object.GetMaskedCerts(object.GetGlobalCerts())
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
 		}
 
-		c.ResponseOk(maskedCerts)
+		c.ResponseOk(certs)
 	} else {
 		limit := util.ParseInt(limit)
 		count, err := object.GetGlobalCertsCount(field, value)

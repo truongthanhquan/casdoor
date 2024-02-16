@@ -19,12 +19,11 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/casdoor/casdoor/captcha"
 	"github.com/casdoor/casdoor/conf"
@@ -34,11 +33,7 @@ import (
 	"github.com/casdoor/casdoor/proxy"
 	"github.com/casdoor/casdoor/util"
 	"github.com/google/uuid"
-)
-
-var (
-	wechatScanType string
-	lock           sync.RWMutex
+	"golang.org/x/oauth2"
 )
 
 func codeToResponse(code *object.Code) *Response {
@@ -154,7 +149,8 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 			resp = &Response{Status: "error", Msg: fmt.Sprintf("error: grant_type: %s is not supported in this application", form.Type), Data: ""}
 		} else {
 			scope := c.Input().Get("scope")
-			token, _ := object.GetTokenByUser(application, user, scope, c.Ctx.Request.Host)
+			nonce := c.Input().Get("nonce")
+			token, _ := object.GetTokenByUser(application, user, scope, nonce, c.Ctx.Request.Host)
 			resp = tokenToResponse(token)
 		}
 	} else if form.Type == ResponseTypeSaml { // saml flow
@@ -220,7 +216,7 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 // @Param   redirectUri    query    string  true        "redirect uri"
 // @Param   scope    query    string  true        "scope"
 // @Param   state    query    string  true        "state"
-// @Success 200 {object}  Response The Response object
+// @Success 200 {object} controllers.Response The Response object
 // @router /get-app-login [get]
 func (c *ApiController) GetApplicationLogin() {
 	clientId := c.Input().Get("clientId")
@@ -331,8 +327,6 @@ func (c *ApiController) Login() {
 		}
 
 		var user *object.User
-		var msg string
-
 		if authForm.Password == "" {
 			if user, err = object.GetUserByFields(authForm.Organization, authForm.Username); err != nil {
 				c.ResponseError(err.Error(), nil)
@@ -342,7 +336,28 @@ func (c *ApiController) Login() {
 				return
 			}
 
+			var application *object.Application
+			application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
+			if err != nil {
+				c.ResponseError(err.Error(), nil)
+				return
+			}
+
+			if application == nil {
+				c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), authForm.Application))
+				return
+			}
+
 			verificationCodeType := object.GetVerifyType(authForm.Username)
+			if verificationCodeType == object.VerifyTypeEmail && !application.IsCodeSigninViaEmailEnabled() {
+				c.ResponseError(c.T("auth:The login method: login with email is not enabled for the application"))
+				return
+			}
+			if verificationCodeType == object.VerifyTypePhone && !application.IsCodeSigninViaSmsEnabled() {
+				c.ResponseError(c.T("auth:The login method: login with SMS is not enabled for the application"))
+				return
+			}
+
 			var checkDest string
 			if verificationCodeType == object.VerifyTypePhone {
 				authForm.CountryCode = user.GetCountryCode(authForm.CountryCode)
@@ -354,20 +369,21 @@ func (c *ApiController) Login() {
 			}
 
 			// check result through Email or Phone
-			checkResult := object.CheckSigninCode(user, checkDest, authForm.Code, c.GetAcceptLanguage())
-			if len(checkResult) != 0 {
-				c.ResponseError(fmt.Sprintf("%s - %s", verificationCodeType, checkResult))
+			err = object.CheckSigninCode(user, checkDest, authForm.Code, c.GetAcceptLanguage())
+			if err != nil {
+				c.ResponseError(fmt.Sprintf("%s - %s", verificationCodeType, err.Error()))
 				return
 			}
 
 			// disable the verification code
-			err := object.DisableVerificationCode(checkDest)
+			err = object.DisableVerificationCode(checkDest)
 			if err != nil {
 				c.ResponseError(err.Error(), nil)
 				return
 			}
 		} else {
-			application, err := object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
+			var application *object.Application
+			application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
 			if err != nil {
 				c.ResponseError(err.Error(), nil)
 				return
@@ -377,8 +393,12 @@ func (c *ApiController) Login() {
 				c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), authForm.Application))
 				return
 			}
-			if !application.EnablePassword {
+			if authForm.SigninMethod == "Password" && !application.IsPasswordEnabled() {
 				c.ResponseError(c.T("auth:The login method: login with password is not enabled for the application"))
+				return
+			}
+			if authForm.SigninMethod == "LDAP" && !application.IsLdapEnabled() {
+				c.ResponseError(c.T("auth:The login method: login with LDAP is not enabled for the application"))
 				return
 			}
 			var enableCaptcha bool
@@ -386,7 +406,18 @@ func (c *ApiController) Login() {
 				c.ResponseError(err.Error())
 				return
 			} else if enableCaptcha {
-				isHuman, err := captcha.VerifyCaptchaByCaptchaType(authForm.CaptchaType, authForm.CaptchaToken, authForm.ClientSecret)
+				captchaProvider, err := object.GetCaptchaProviderByApplication(util.GetId(application.Owner, application.Name), "false", c.GetAcceptLanguage())
+				if err != nil {
+					c.ResponseError(err.Error())
+					return
+				}
+
+				if captchaProvider.Type != "Default" {
+					authForm.ClientSecret = captchaProvider.ClientSecret
+				}
+
+				var isHuman bool
+				isHuman, err = captcha.VerifyCaptchaByCaptchaType(authForm.CaptchaType, authForm.CaptchaToken, authForm.ClientSecret)
 				if err != nil {
 					c.ResponseError(err.Error())
 					return
@@ -399,13 +430,22 @@ func (c *ApiController) Login() {
 			}
 
 			password := authForm.Password
-			user, msg = object.CheckUserPassword(authForm.Organization, authForm.Username, password, c.GetAcceptLanguage(), enableCaptcha)
+			isSigninViaLdap := authForm.SigninMethod == "LDAP"
+			var isPasswordWithLdapEnabled bool
+			if authForm.SigninMethod == "Password" {
+				isPasswordWithLdapEnabled = application.IsPasswordWithLdapEnabled()
+			} else {
+				isPasswordWithLdapEnabled = false
+			}
+			user, err = object.CheckUserPassword(authForm.Organization, authForm.Username, password, c.GetAcceptLanguage(), enableCaptcha, isSigninViaLdap, isPasswordWithLdapEnabled)
 		}
 
-		if msg != "" {
-			resp = &Response{Status: "error", Msg: msg}
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
 		} else {
-			application, err := object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
+			var application *object.Application
+			application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
 			if err != nil {
 				c.ResponseError(err.Error())
 				return
@@ -416,7 +456,8 @@ func (c *ApiController) Login() {
 				return
 			}
 
-			organization, err := object.GetOrganizationByUser(user)
+			var organization *object.Organization
+			organization, err = object.GetOrganizationByUser(user)
 			if err != nil {
 				c.ResponseError(err.Error())
 			}
@@ -461,12 +502,15 @@ func (c *ApiController) Login() {
 			c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), authForm.Application))
 			return
 		}
-		organization, err := object.GetOrganization(util.GetId("admin", application.Organization))
+
+		var organization *object.Organization
+		organization, err = object.GetOrganization(util.GetId("admin", application.Organization))
 		if err != nil {
 			c.ResponseError(c.T(err.Error()))
 		}
 
-		provider, err := object.GetProvider(util.GetId("admin", authForm.Provider))
+		var provider *object.Provider
+		provider, err = object.GetProvider(util.GetId("admin", authForm.Provider))
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
@@ -477,11 +521,10 @@ func (c *ApiController) Login() {
 			c.ResponseError(fmt.Sprintf(c.T("auth:The provider: %s is not enabled for the application"), provider.Name))
 			return
 		}
-
 		userInfo := &idp.UserInfo{}
 		if provider.Category == "SAML" {
 			// SAML
-			userInfo.Id, err = object.ParseSamlResponse(authForm.SamlResponse, provider, c.Ctx.Request.Host)
+			userInfo, err = object.ParseSamlResponse(authForm.SamlResponse, provider, c.Ctx.Request.Host)
 			if err != nil {
 				c.ResponseError(err.Error())
 				return
@@ -489,7 +532,12 @@ func (c *ApiController) Login() {
 		} else if provider.Category == "OAuth" || provider.Category == "Web3" {
 			// OAuth
 			idpInfo := object.FromProviderToIdpInfo(c.Ctx, provider)
-			idProvider := idp.GetIdProvider(idpInfo, authForm.RedirectUri)
+			var idProvider idp.IdProvider
+			idProvider, err = idp.GetIdProvider(idpInfo, authForm.RedirectUri)
+			if err != nil {
+				c.ResponseError(err.Error())
+				return
+			}
 			if idProvider == nil {
 				c.ResponseError(fmt.Sprintf(c.T("storage:The provider type: %s is not supported"), provider.Type))
 				return
@@ -503,7 +551,8 @@ func (c *ApiController) Login() {
 			}
 
 			// https://github.com/golang/oauth2/issues/123#issuecomment-103715338
-			token, err := idProvider.GetToken(authForm.Code)
+			var token *oauth2.Token
+			token, err = idProvider.GetToken(authForm.Code)
 			if err != nil {
 				c.ResponseError(err.Error())
 				return
@@ -524,7 +573,8 @@ func (c *ApiController) Login() {
 		if authForm.Method == "signup" {
 			user := &object.User{}
 			if provider.Category == "SAML" {
-				user, err = object.GetUser(util.GetId(application.Organization, userInfo.Id))
+				// The userInfo.Id is the NameID in SAML response, it could be name / email / phone
+				user, err = object.GetUserByFields(application.Organization, userInfo.Id)
 				if err != nil {
 					c.ResponseError(err.Error())
 					return
@@ -543,7 +593,12 @@ func (c *ApiController) Login() {
 				if user.IsForbidden {
 					c.ResponseError(c.T("check:The user is forbidden to sign in, please contact the administrator"))
 				}
-
+				// sync info from 3rd-party if possible
+				_, err = object.SetUserOAuthProperties(organization, user, provider.Type, userInfo)
+				if err != nil {
+					c.ResponseError(err.Error())
+					return
+				}
 				resp = c.HandleLoggedIn(application, user, &authForm)
 
 				record := object.NewRecord(c.Ctx)
@@ -584,14 +639,16 @@ func (c *ApiController) Login() {
 					}
 
 					// Handle username conflicts
-					tmpUser, err := object.GetUser(util.GetId(application.Organization, userInfo.Username))
+					var tmpUser *object.User
+					tmpUser, err = object.GetUser(util.GetId(application.Organization, userInfo.Username))
 					if err != nil {
 						c.ResponseError(err.Error())
 						return
 					}
 
 					if tmpUser != nil {
-						uid, err := uuid.NewRandom()
+						var uid uuid.UUID
+						uid, err = uuid.NewRandom()
 						if err != nil {
 							c.ResponseError(err.Error())
 							return
@@ -602,14 +659,16 @@ func (c *ApiController) Login() {
 					}
 
 					properties := map[string]string{}
-					count, err := object.GetUserCount(application.Organization, "", "", "")
+					var count int64
+					count, err = object.GetUserCount(application.Organization, "", "", "")
 					if err != nil {
 						c.ResponseError(err.Error())
 						return
 					}
 
 					properties["no"] = strconv.Itoa(int(count + 2))
-					initScore, err := organization.GetInitScore()
+					var initScore int
+					initScore, err = organization.GetInitScore()
 					if err != nil {
 						c.ResponseError(fmt.Errorf(c.T("account:Get init score failed, error: %w"), err).Error())
 						return
@@ -641,7 +700,8 @@ func (c *ApiController) Login() {
 						Properties:        properties,
 					}
 
-					affected, err := object.AddUser(user)
+					var affected bool
+					affected, err = object.AddUser(user)
 					if err != nil {
 						c.ResponseError(err.Error())
 						return
@@ -651,10 +711,19 @@ func (c *ApiController) Login() {
 						c.ResponseError(fmt.Sprintf(c.T("auth:Failed to create user, user information is invalid: %s"), util.StructToJson(user)))
 						return
 					}
+
+					if providerItem.SignupGroup != "" {
+						user.Groups = []string{providerItem.SignupGroup}
+						_, err = object.UpdateUser(user.GetId(), user, []string{"groups"}, false)
+						if err != nil {
+							c.ResponseError(err.Error())
+							return
+						}
+					}
 				}
 
 				// sync info from 3rd-party if possible
-				_, err := object.SetUserOAuthProperties(organization, user, provider.Type, userInfo)
+				_, err = object.SetUserOAuthProperties(organization, user, provider.Type, userInfo)
 				if err != nil {
 					c.ResponseError(err.Error())
 					return
@@ -679,6 +748,7 @@ func (c *ApiController) Login() {
 				record2.User = user.Name
 				util.SafeGoroutine(func() { object.AddRecord(record2) })
 			} else if provider.Category == "SAML" {
+				// TODO: since we get the user info from SAML response, we can try to create the user
 				resp = &Response{Status: "error", Msg: fmt.Sprintf(c.T("general:The user: %s doesn't exist"), util.GetId(application.Organization, userInfo.Id))}
 			}
 			// resp = &Response{Status: "ok", Msg: "", Data: res}
@@ -689,7 +759,8 @@ func (c *ApiController) Login() {
 				return
 			}
 
-			oldUser, err := object.GetUserByField(application.Organization, provider.Type, userInfo.Id)
+			var oldUser *object.User
+			oldUser, err = object.GetUserByField(application.Organization, provider.Type, userInfo.Id)
 			if err != nil {
 				c.ResponseError(err.Error())
 				return
@@ -700,7 +771,8 @@ func (c *ApiController) Login() {
 				return
 			}
 
-			user, err := object.GetUser(userId)
+			var user *object.User
+			user, err = object.GetUser(userId)
 			if err != nil {
 				c.ResponseError(err.Error())
 				return
@@ -713,7 +785,8 @@ func (c *ApiController) Login() {
 				return
 			}
 
-			isLinked, err := object.LinkUserAccount(user, provider.Type, userInfo.Id)
+			var isLinked bool
+			isLinked, err = object.LinkUserAccount(user, provider.Type, userInfo.Id)
 			if err != nil {
 				c.ResponseError(err.Error())
 				return
@@ -726,7 +799,8 @@ func (c *ApiController) Login() {
 			}
 		}
 	} else if c.getMfaUserSession() != "" {
-		user, err := object.GetUser(c.getMfaUserSession())
+		var user *object.User
+		user, err = object.GetUser(c.getMfaUserSession())
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
@@ -759,7 +833,8 @@ func (c *ApiController) Login() {
 			return
 		}
 
-		application, err := object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
+		var application *object.Application
+		application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
@@ -780,7 +855,8 @@ func (c *ApiController) Login() {
 	} else {
 		if c.GetSessionUsername() != "" {
 			// user already signed in to Casdoor, so let the user click the avatar button to do the quick sign-in
-			application, err := object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
+			var application *object.Application
+			application, err = object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
 			if err != nil {
 				c.ResponseError(err.Error())
 				return
@@ -814,6 +890,7 @@ func (c *ApiController) GetSamlLogin() {
 	authURL, method, err := object.GenerateSamlRequest(providerId, relayState, c.Ctx.Request.Host, c.GetAcceptLanguage())
 	if err != nil {
 		c.ResponseError(err.Error())
+		return
 	}
 	c.ResponseOk(authURL, method)
 }
@@ -824,60 +901,126 @@ func (c *ApiController) HandleSamlLogin() {
 	decode, err := base64.StdEncoding.DecodeString(relayState)
 	if err != nil {
 		c.ResponseError(err.Error())
+		return
 	}
 	slice := strings.Split(string(decode), "&")
 	relayState = url.QueryEscape(relayState)
 	samlResponse = url.QueryEscape(samlResponse)
 	targetUrl := fmt.Sprintf("%s?relayState=%s&samlResponse=%s",
 		slice[4], relayState, samlResponse)
-	c.Redirect(targetUrl, 303)
+	c.Redirect(targetUrl, http.StatusSeeOther)
 }
 
 // HandleOfficialAccountEvent ...
-// @Tag HandleOfficialAccountEvent API
+// @Tag System API
 // @Title HandleOfficialAccountEvent
-// @router /api/webhook [POST]
+// @router /webhook [POST]
+// @Success 200 {object} controllers.Response The Response object
 func (c *ApiController) HandleOfficialAccountEvent() {
-	respBytes, err := ioutil.ReadAll(c.Ctx.Request.Body)
+	if c.Ctx.Request.Method == "GET" {
+		s := c.Ctx.Request.FormValue("echostr")
+		echostr, _ := strconv.Atoi(s)
+		c.SetData(echostr)
+		c.ServeJSON()
+		return
+	}
+	respBytes, err := io.ReadAll(c.Ctx.Request.Body)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
-
+	signature := c.Input().Get("signature")
+	timestamp := c.Input().Get("timestamp")
+	nonce := c.Input().Get("nonce")
 	var data struct {
-		MsgType  string `xml:"MsgType"`
-		Event    string `xml:"Event"`
-		EventKey string `xml:"EventKey"`
+		MsgType      string `xml:"MsgType"`
+		Event        string `xml:"Event"`
+		EventKey     string `xml:"EventKey"`
+		FromUserName string `xml:"FromUserName"`
+		Ticket       string `xml:"Ticket"`
 	}
 	err = xml.Unmarshal(respBytes, &data)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
-
-	lock.Lock()
-	defer lock.Unlock()
-	if data.EventKey != "" {
-		wechatScanType = data.Event
+	if strings.ToUpper(data.Event) != "SCAN" && strings.ToUpper(data.Event) != "SUBSCRIBE" {
 		c.Ctx.WriteString("")
+		return
 	}
+	if data.Ticket == "" {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	providerId := data.EventKey
+	provider, err := object.GetProvider(providerId)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if data.Ticket == "" {
+		c.ResponseError("empty ticket")
+		return
+	}
+	if !idp.VerifyWechatSignature(provider.Content, nonce, timestamp, signature) {
+		c.ResponseError("invalid signature")
+		return
+	}
+
+	idp.Lock.Lock()
+	if idp.WechatCacheMap == nil {
+		idp.WechatCacheMap = make(map[string]idp.WechatCacheMapValue)
+	}
+	idp.WechatCacheMap[data.Ticket] = idp.WechatCacheMapValue{
+		IsScanned:     true,
+		WechatUnionId: data.FromUserName,
+	}
+	idp.Lock.Unlock()
+
+	c.Ctx.WriteString("")
 }
 
 // GetWebhookEventType ...
-// @Tag GetWebhookEventType API
+// @Tag System API
 // @Title GetWebhookEventType
-// @router /api/get-webhook-event [GET]
+// @router /get-webhook-event [GET]
+// @Param   ticket     query    string  true        "The eventId of QRCode"
+// @Success 200 {object} controllers.Response The Response object
 func (c *ApiController) GetWebhookEventType() {
-	lock.Lock()
-	defer lock.Unlock()
-	resp := &Response{
-		Status: "ok",
-		Msg:    "",
-		Data:   wechatScanType,
+	ticket := c.Input().Get("ticket")
+
+	idp.Lock.RLock()
+	_, ok := idp.WechatCacheMap[ticket]
+	idp.Lock.RUnlock()
+	if !ok {
+		c.ResponseError("ticket not found")
+		return
 	}
-	c.Data["json"] = resp
-	wechatScanType = ""
-	c.ServeJSON()
+
+	c.ResponseOk("SCAN", ticket)
+}
+
+// GetQRCode
+// @Tag System API
+// @Title GetWechatQRCode
+// @router /get-qrcode [GET]
+// @Param   id     query    string  true        "The id ( owner/name ) of provider"
+// @Success 200 {object} controllers.Response The Response object
+func (c *ApiController) GetQRCode() {
+	providerId := c.Input().Get("id")
+	provider, err := object.GetProvider(providerId)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	code, ticket, err := idp.GetWechatOfficialAccountQRCode(provider.ClientId2, provider.ClientSecret2, providerId)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	c.ResponseOk(code, ticket)
 }
 
 // GetCaptchaStatus
@@ -886,20 +1029,30 @@ func (c *ApiController) GetWebhookEventType() {
 // @Description Get Login Error Counts
 // @Param   id     query    string  true        "The id ( owner/name ) of user"
 // @Success 200 {object} controllers.Response The Response object
-// @router /api/get-captcha-status [get]
+// @router /get-captcha-status [get]
 func (c *ApiController) GetCaptchaStatus() {
 	organization := c.Input().Get("organization")
-	userId := c.Input().Get("user_id")
+	userId := c.Input().Get("userId")
 	user, err := object.GetUserByFields(organization, userId)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
-	var captchaEnabled bool
-	if user != nil && user.SigninWrongTimes >= object.SigninWrongTimesLimit {
-		captchaEnabled = true
+	captchaEnabled := false
+	if user != nil {
+		var failedSigninLimit int
+		failedSigninLimit, _, err = object.GetFailedSigninConfigByUser(user)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+
+		if user.SigninWrongTimes >= failedSigninLimit {
+			captchaEnabled = true
+		}
 	}
+
 	c.ResponseOk(captchaEnabled)
 }
 
@@ -907,7 +1060,8 @@ func (c *ApiController) GetCaptchaStatus() {
 // @Title Callback
 // @Tag Callback API
 // @Description Get Login Error Counts
-// @router /api/Callback [post]
+// @router /Callback [post]
+// @Success 200 {object} object.Userinfo The Response object
 func (c *ApiController) Callback() {
 	code := c.GetString("code")
 	state := c.GetString("state")

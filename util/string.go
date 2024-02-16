@@ -45,6 +45,19 @@ func ParseInt(s string) int {
 	return i
 }
 
+func ParseIntWithError(s string) (int, error) {
+	if s == "" {
+		return 0, fmt.Errorf("ParseIntWithError() error, empty string")
+	}
+
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+
+	return i, nil
+}
+
 func ParseFloat(s string) float64 {
 	f, err := strconv.ParseFloat(s, 64)
 	if err != nil {
@@ -308,4 +321,31 @@ func GetUsernameFromEmail(email string) string {
 	} else {
 		return tokens[0]
 	}
+}
+
+func StringToInterfaceArray(array []string) []interface{} {
+	var (
+		interfaceArray []interface{}
+		elem           interface{}
+	)
+	for _, elem = range array {
+		jStruct, err := TryJsonToAnonymousStruct(elem.(string))
+		if err == nil {
+			elem = jStruct
+		}
+		interfaceArray = append(interfaceArray, elem)
+	}
+	return interfaceArray
+}
+
+func StringToInterfaceArray2d(arrays [][]string) [][]interface{} {
+	var interfaceArrays [][]interface{}
+	for _, req := range arrays {
+		var interfaceArray []interface{}
+		for _, r := range req {
+			interfaceArray = append(interfaceArray, r)
+		}
+		interfaceArrays = append(interfaceArrays, interfaceArray)
+	}
+	return interfaceArrays
 }

@@ -35,21 +35,13 @@ func downloadImage(client *http.Client, url string) (*bytes.Buffer, string, erro
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("downloadImage() error for url [%s]: %s\n", url, err.Error())
-		if strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "no such host") || strings.Contains(err.Error(), "did not properly respond after a period of time") || strings.Contains(err.Error(), "unrecognized name") {
-			return nil, "", nil
-		} else {
-			return nil, "", err
-		}
+		return nil, "", nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("downloadImage() error for url [%s]: %s\n", url, resp.Status)
-		if resp.StatusCode == 404 {
-			return nil, "", nil
-		} else {
-			return nil, "", fmt.Errorf("failed to download gravatar image: %s", resp.Status)
-		}
+		return nil, "", nil
 	}
 
 	// Get the content type and determine the file extension
@@ -58,6 +50,8 @@ func downloadImage(client *http.Client, url string) (*bytes.Buffer, string, erro
 
 	if strings.Contains(contentType, "text/html") {
 		fileExtension = ".html"
+	} else if contentType == "image/vnd.microsoft.icon" {
+		fileExtension = ".ico"
 	} else {
 		fileExtensions, err := mime.ExtensionsByType(contentType)
 		if err != nil {
