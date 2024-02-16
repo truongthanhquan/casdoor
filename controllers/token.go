@@ -156,12 +156,11 @@ func (c *ApiController) DeleteToken() {
 // @Success 200 {object} object.TokenWrapper The Response object
 // @Success 400 {object} object.TokenError The Response object
 // @Success 401 {object} object.TokenError The Response object
-// @router api/login/oauth/access_token [post]
+// @router /login/oauth/access_token [post]
 func (c *ApiController) GetOAuthToken() {
-	grantType := c.Input().Get("grant_type")
-	refreshToken := c.Input().Get("refresh_token")
 	clientId := c.Input().Get("client_id")
 	clientSecret := c.Input().Get("client_secret")
+	grantType := c.Input().Get("grant_type")
 	code := c.Input().Get("code")
 	verifier := c.Input().Get("code_verifier")
 	scope := c.Input().Get("scope")
@@ -169,35 +168,61 @@ func (c *ApiController) GetOAuthToken() {
 	password := c.Input().Get("password")
 	tag := c.Input().Get("tag")
 	avatar := c.Input().Get("avatar")
+	refreshToken := c.Input().Get("refresh_token")
 
 	if clientId == "" && clientSecret == "" {
 		clientId, clientSecret, _ = c.Ctx.Request.BasicAuth()
 	}
-	if clientId == "" {
-		// If clientID is empty, try to read data from RequestBody
+
+	if len(c.Ctx.Input.RequestBody) != 0 {
+		// If clientId is empty, try to read data from RequestBody
 		var tokenRequest TokenRequest
-		if err := json.Unmarshal(c.Ctx.Input.RequestBody, &tokenRequest); err == nil {
-			clientId = tokenRequest.ClientId
-			clientSecret = tokenRequest.ClientSecret
-			grantType = tokenRequest.GrantType
-			refreshToken = tokenRequest.RefreshToken
-			code = tokenRequest.Code
-			verifier = tokenRequest.Verifier
-			scope = tokenRequest.Scope
-			username = tokenRequest.Username
-			password = tokenRequest.Password
-			tag = tokenRequest.Tag
-			avatar = tokenRequest.Avatar
+		err := json.Unmarshal(c.Ctx.Input.RequestBody, &tokenRequest)
+		if err == nil {
+			if clientId == "" {
+				clientId = tokenRequest.ClientId
+			}
+			if clientSecret == "" {
+				clientSecret = tokenRequest.ClientSecret
+			}
+			if grantType == "" {
+				grantType = tokenRequest.GrantType
+			}
+			if code == "" {
+				code = tokenRequest.Code
+			}
+			if verifier == "" {
+				verifier = tokenRequest.Verifier
+			}
+			if scope == "" {
+				scope = tokenRequest.Scope
+			}
+			if username == "" {
+				username = tokenRequest.Username
+			}
+			if password == "" {
+				password = tokenRequest.Password
+			}
+			if tag == "" {
+				tag = tokenRequest.Tag
+			}
+			if avatar == "" {
+				avatar = tokenRequest.Avatar
+			}
+			if refreshToken == "" {
+				refreshToken = tokenRequest.RefreshToken
+			}
 		}
 	}
+
 	host := c.Ctx.Request.Host
-	oAuthtoken, err := object.GetOAuthToken(grantType, clientId, clientSecret, code, verifier, scope, username, password, host, refreshToken, tag, avatar, c.GetAcceptLanguage())
+	token, err := object.GetOAuthToken(grantType, clientId, clientSecret, code, verifier, scope, username, password, host, refreshToken, tag, avatar, c.GetAcceptLanguage())
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
-	c.Data["json"] = oAuthtoken
+	c.Data["json"] = token
 	c.SetTokenErrorHttpStatus()
 	c.ServeJSON()
 }
@@ -246,8 +271,17 @@ func (c *ApiController) RefreshToken() {
 	c.ServeJSON()
 }
 
+func (c *ApiController) ResponseTokenError(errorMsg string) {
+	c.Data["json"] = &object.TokenError{
+		Error: errorMsg,
+	}
+	c.SetTokenErrorHttpStatus()
+	c.ServeJSON()
+}
+
 // IntrospectToken
 // @Title IntrospectToken
+// @Tag Login API
 // @Description The introspection endpoint is an OAuth 2.0 endpoint that takes a
 // parameter representing an OAuth 2.0 token and returns a JSON document
 // representing the meta information surrounding the
@@ -267,40 +301,33 @@ func (c *ApiController) IntrospectToken() {
 		clientId = c.Input().Get("client_id")
 		clientSecret = c.Input().Get("client_secret")
 		if clientId == "" || clientSecret == "" {
-			c.ResponseError(c.T("token:Empty clientId or clientSecret"))
-			c.Data["json"] = &object.TokenError{
-				Error: object.InvalidRequest,
-			}
-			c.SetTokenErrorHttpStatus()
-			c.ServeJSON()
+			c.ResponseTokenError(object.InvalidRequest)
 			return
 		}
 	}
+
 	application, err := object.GetApplicationByClientId(clientId)
 	if err != nil {
-		c.ResponseError(err.Error())
+		c.ResponseTokenError(err.Error())
 		return
 	}
 
 	if application == nil || application.ClientSecret != clientSecret {
-		c.ResponseError(c.T("token:Invalid application or wrong clientSecret"))
-		c.Data["json"] = &object.TokenError{
-			Error: object.InvalidClient,
-		}
-		c.SetTokenErrorHttpStatus()
-		return
-	}
-	token, err := object.GetTokenByTokenAndApplication(tokenValue, application.Name)
-	if err != nil {
-		c.ResponseError(err.Error())
+		c.ResponseTokenError(c.T("token:Invalid application or wrong clientSecret"))
 		return
 	}
 
+	token, err := object.GetTokenByTokenValue(tokenValue)
+	if err != nil {
+		c.ResponseTokenError(err.Error())
+		return
+	}
 	if token == nil {
 		c.Data["json"] = &object.IntrospectionResponse{Active: false}
 		c.ServeJSON()
 		return
 	}
+
 	jwtToken, err := object.ParseJwtTokenByApplication(tokenValue, application)
 	if err != nil || jwtToken.Valid() != nil {
 		// and token revoked case. but we not implement

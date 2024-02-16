@@ -44,7 +44,12 @@ class ApplicationListPage extends BaseListPage {
       enableCodeSignin: false,
       enableSamlCompress: false,
       providers: [
-        {name: "provider_captcha_default", canSignUp: false, canSignIn: false, canUnlink: false, prompted: false, alertType: "None"},
+        {name: "provider_captcha_default", canSignUp: false, canSignIn: false, canUnlink: false, prompted: false, signupGroup: "", rule: ""},
+      ],
+      SigninMethods: [
+        {name: "Password", displayName: "Password", rule: "All"},
+        {name: "Verification code", displayName: "Verification code", rule: "All"},
+        {name: "WebAuthn", displayName: "WebAuthn", rule: "None"},
       ],
       signupItems: [
         {name: "ID", visible: false, required: true, rule: "Random"},
@@ -56,9 +61,11 @@ class ApplicationListPage extends BaseListPage {
         {name: "Phone", visible: true, required: true, rule: "None"},
         {name: "Agreement", visible: true, required: true, rule: "None"},
       ],
+      grantTypes: ["authorization_code", "password", "client_credentials", "token", "id_token", "refresh_token"],
       cert: "cert-built-in",
       redirectUris: ["http://localhost:9000/callback"],
       tokenFormat: "JWT",
+      tokenFields: [],
       expireInHours: 24 * 7,
       refreshExpireInHours: 24 * 7,
       formOffset: 2,

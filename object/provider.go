@@ -37,9 +37,9 @@ type Provider struct {
 	SubType           string            `xorm:"varchar(100)" json:"subType"`
 	Method            string            `xorm:"varchar(100)" json:"method"`
 	ClientId          string            `xorm:"varchar(200)" json:"clientId"`
-	ClientSecret      string            `xorm:"varchar(2000)" json:"clientSecret"`
+	ClientSecret      string            `xorm:"varchar(3000)" json:"clientSecret"`
 	ClientId2         string            `xorm:"varchar(100)" json:"clientId2"`
-	ClientSecret2     string            `xorm:"varchar(100)" json:"clientSecret2"`
+	ClientSecret2     string            `xorm:"varchar(500)" json:"clientSecret2"`
 	Cert              string            `xorm:"varchar(100)" json:"cert"`
 	CustomAuthUrl     string            `xorm:"varchar(200)" json:"customAuthUrl"`
 	CustomTokenUrl    string            `xorm:"varchar(200)" json:"customTokenUrl"`
@@ -52,7 +52,7 @@ type Provider struct {
 	Port       int    `json:"port"`
 	DisableSsl bool   `json:"disableSsl"` // If the provider type is WeChat, DisableSsl means EnableQRCode
 	Title      string `xorm:"varchar(100)" json:"title"`
-	Content    string `xorm:"varchar(1000)" json:"content"` // If provider type is WeChat, Content means QRCode string by Base64 encoding
+	Content    string `xorm:"varchar(2000)" json:"content"` // If provider type is WeChat, Content means QRCode string by Base64 encoding
 	Receiver   string `xorm:"varchar(100)" json:"receiver"`
 
 	RegionId     string `xorm:"varchar(100)" json:"regionId"`
@@ -312,8 +312,6 @@ func GetPaymentProvider(p *Provider) (pp.PaymentProvider, error) {
 	} else {
 		return nil, fmt.Errorf("the payment provider type: %s is not supported", p.Type)
 	}
-
-	return nil, nil
 }
 
 func (p *Provider) GetId() string {
@@ -398,16 +396,18 @@ func providerChangeTrigger(oldName string, newName string) error {
 
 func FromProviderToIdpInfo(ctx *context.Context, provider *Provider) *idp.ProviderInfo {
 	providerInfo := &idp.ProviderInfo{
-		Type:         provider.Type,
-		SubType:      provider.SubType,
-		ClientId:     provider.ClientId,
-		ClientSecret: provider.ClientSecret,
-		AppId:        provider.AppId,
-		HostUrl:      provider.Host,
-		TokenURL:     provider.CustomTokenUrl,
-		AuthURL:      provider.CustomAuthUrl,
-		UserInfoURL:  provider.CustomUserInfoUrl,
-		UserMapping:  provider.UserMapping,
+		Type:          provider.Type,
+		SubType:       provider.SubType,
+		ClientId:      provider.ClientId,
+		ClientSecret:  provider.ClientSecret,
+		ClientId2:     provider.ClientId2,
+		ClientSecret2: provider.ClientSecret2,
+		AppId:         provider.AppId,
+		HostUrl:       provider.Host,
+		TokenURL:      provider.CustomTokenUrl,
+		AuthURL:       provider.CustomAuthUrl,
+		UserInfoURL:   provider.CustomUserInfoUrl,
+		UserMapping:   provider.UserMapping,
 	}
 
 	if provider.Type == "WeChat" {
@@ -415,7 +415,7 @@ func FromProviderToIdpInfo(ctx *context.Context, provider *Provider) *idp.Provid
 			providerInfo.ClientId = provider.ClientId2
 			providerInfo.ClientSecret = provider.ClientSecret2
 		}
-	} else if provider.Type == "AzureAD" {
+	} else if provider.Type == "AzureAD" || provider.Type == "AzureADB2C" || provider.Type == "ADFS" || provider.Type == "Okta" {
 		providerInfo.HostUrl = provider.Domain
 	}
 

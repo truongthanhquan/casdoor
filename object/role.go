@@ -151,8 +151,16 @@ func UpdateRole(id string, role *Role) (bool, error) {
 	}
 
 	for _, permission := range permissions {
-		addGroupingPolicies(permission)
-		addPolicies(permission)
+		err = addGroupingPolicies(permission)
+		if err != nil {
+			return false, err
+		}
+
+		err = addPolicies(permission)
+		if err != nil {
+			return false, err
+		}
+
 		visited[permission.GetId()] = struct{}{}
 	}
 
@@ -166,10 +174,15 @@ func UpdateRole(id string, role *Role) (bool, error) {
 		if err != nil {
 			return false, err
 		}
+
 		for _, permission := range permissions {
 			permissionId := permission.GetId()
 			if _, ok := visited[permissionId]; !ok {
-				addGroupingPolicies(permission)
+				err = addGroupingPolicies(permission)
+				if err != nil {
+					return false, err
+				}
+
 				visited[permissionId] = struct{}{}
 			}
 		}
@@ -253,20 +266,23 @@ func (role *Role) GetId() string {
 }
 
 func getRolesByUserInternal(userId string) ([]*Role, error) {
-	roles := []*Role{}
 	user, err := GetUser(userId)
 	if err != nil {
-		return roles, err
+		return nil, err
+	}
+	if user == nil {
+		return nil, fmt.Errorf("The user: %s doesn't exist", userId)
 	}
 
-	query := ormer.Engine.Where("role.users like ?", fmt.Sprintf("%%%s%%", userId))
+	query := ormer.Engine.Alias("r").Where("r.users like ?", fmt.Sprintf("%%%s%%", userId))
 	for _, group := range user.Groups {
-		query = query.Or("role.groups like ?", fmt.Sprintf("%%%s%%", group))
+		query = query.Or("r.groups like ?", fmt.Sprintf("%%%s%%", group))
 	}
 
+	roles := []*Role{}
 	err = query.Find(&roles)
 	if err != nil {
-		return roles, err
+		return nil, err
 	}
 
 	res := []*Role{}
@@ -275,14 +291,13 @@ func getRolesByUserInternal(userId string) ([]*Role, error) {
 			res = append(res, role)
 		}
 	}
-
 	return res, nil
 }
 
 func getRolesByUser(userId string) ([]*Role, error) {
 	roles, err := getRolesByUserInternal(userId)
 	if err != nil {
-		return roles, err
+		return nil, err
 	}
 
 	allRolesIds := []string{}
@@ -363,15 +378,11 @@ func GetMaskedRoles(roles []*Role) []*Role {
 
 // GetAncestorRoles returns a list of roles that contain the given roleIds
 func GetAncestorRoles(roleIds ...string) ([]*Role, error) {
-	var (
-		result  = []*Role{}
-		roleMap = make(map[string]*Role)
-		visited = make(map[string]bool)
-	)
 	if len(roleIds) == 0 {
-		return result, nil
+		return []*Role{}, nil
 	}
 
+	visited := map[string]bool{}
 	for _, roleId := range roleIds {
 		visited[roleId] = true
 	}
@@ -383,25 +394,26 @@ func GetAncestorRoles(roleIds ...string) ([]*Role, error) {
 		return nil, err
 	}
 
+	roleMap := map[string]*Role{}
 	for _, r := range allRoles {
 		roleMap[r.GetId()] = r
 	}
 
-	// Second, find all the roles that contain father roles
+	// find all the roles that contain father roles
+	res := []*Role{}
 	for _, r := range allRoles {
 		isContain, ok := visited[r.GetId()]
 		if isContain {
-			result = append(result, r)
+			res = append(res, r)
 		} else if !ok {
 			rId := r.GetId()
 			visited[rId] = containsRole(r, roleMap, visited, roleIds...)
 			if visited[rId] {
-				result = append(result, r)
+				res = append(res, r)
 			}
 		}
 	}
-
-	return result, nil
+	return res, nil
 }
 
 // containsRole is a helper function to check if a roles is related to any role in the given list roles

@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/casdoor/casdoor/conf"
 	"github.com/casdoor/casdoor/util"
 	"github.com/xorm-io/builder"
 	"github.com/xorm-io/core"
@@ -224,7 +225,8 @@ func GetGroupUserCount(groupId string, field, value string) (int64, error) {
 	if field == "" && value == "" {
 		return int64(len(names)), nil
 	} else {
-		return ormer.Engine.Table("user").
+		tableNamePrefix := conf.GetConfigString("tableNamePrefix")
+		return ormer.Engine.Table(tableNamePrefix+"user").
 			Where("owner = ?", owner).In("name", names).
 			And(fmt.Sprintf("user.%s like ?", util.CamelToSnakeCase(field)), "%"+value+"%").
 			Count()
@@ -239,7 +241,9 @@ func GetPaginationGroupUsers(groupId string, offset, limit int, field, value, so
 		return nil, err
 	}
 
-	session := ormer.Engine.Table("user").
+	tableNamePrefix := conf.GetConfigString("tableNamePrefix")
+	prefixedUserTable := tableNamePrefix + "user"
+	session := ormer.Engine.Table(prefixedUserTable).
 		Where("owner = ?", owner).In("name", names)
 
 	if offset != -1 && limit != -1 {
@@ -247,16 +251,19 @@ func GetPaginationGroupUsers(groupId string, offset, limit int, field, value, so
 	}
 
 	if field != "" && value != "" {
-		session = session.And(fmt.Sprintf("user.%s like ?", util.CamelToSnakeCase(field)), "%"+value+"%")
+		session = session.And(fmt.Sprintf("%s.%s like ?", prefixedUserTable, util.CamelToSnakeCase(field)), "%"+value+"%")
 	}
 
 	if sortField == "" || sortOrder == "" {
 		sortField = "created_time"
 	}
+
+	orderQuery := fmt.Sprintf("%s.%s", prefixedUserTable, util.SnakeString(sortField))
+
 	if sortOrder == "ascend" {
-		session = session.Asc(fmt.Sprintf("user.%s", util.SnakeString(sortField)))
+		session = session.Asc(orderQuery)
 	} else {
-		session = session.Desc(fmt.Sprintf("user.%s", util.SnakeString(sortField)))
+		session = session.Desc(orderQuery)
 	}
 
 	err = session.Find(&users)
@@ -271,7 +278,9 @@ func GetGroupUsers(groupId string) ([]*User, error) {
 	users := []*User{}
 	owner, _ := util.GetOwnerAndNameFromId(groupId)
 	names, err := userEnforcer.GetUserNamesByGroupName(groupId)
-
+	if err != nil {
+		return nil, err
+	}
 	err = ormer.Engine.Where("owner = ?", owner).In("name", names).Find(&users)
 	if err != nil {
 		return nil, err
@@ -303,6 +312,9 @@ func GroupChangeTrigger(oldName, newName string) error {
 
 	groups := []*Group{}
 	err = session.Where("parent_id = ?", oldName).Find(&groups)
+	if err != nil {
+		return err
+	}
 	for _, group := range groups {
 		group.ParentId = newName
 		_, err := session.ID(core.PK{group.Owner, group.Name}).Cols("parent_id").Update(group)

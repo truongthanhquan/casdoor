@@ -143,6 +143,10 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/social_msg91.ico`,
       url: "https://control.msg91.com/app/",
     },
+    "Custom HTTP SMS": {
+      logo: `${StaticBaseUrl}/img/social_default.png`,
+      url: "https://casdoor.org/docs/provider/sms/overview",
+    },
     "Mock SMS": {
       logo: `${StaticBaseUrl}/img/social_default.png`,
       url: "",
@@ -164,6 +168,10 @@ export const OtherProviderInfo = {
     "Azure ACS": {
       logo: `${StaticBaseUrl}/img/social_azure.png`,
       url: "https://learn.microsoft.com/zh-cn/azure/communication-services",
+    },
+    "Custom HTTP Email": {
+      logo: `${StaticBaseUrl}/img/social_default.png`,
+      url: "https://casdoor.org/docs/provider/email/overview",
     },
   },
   Storage: {
@@ -199,6 +207,10 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/social_google_cloud.png`,
       url: "https://cloud.google.com/storage",
     },
+    "Synology": {
+      logo: `${StaticBaseUrl}/img/social_synology.png`,
+      url: "https://www.synology.com/en-global/dsm/feature/file_sharing",
+    },
   },
   SAML: {
     "Aliyun IDaaS": {
@@ -208,6 +220,10 @@ export const OtherProviderInfo = {
     "Keycloak": {
       logo: `${StaticBaseUrl}/img/social_keycloak.png`,
       url: "https://www.keycloak.org/",
+    },
+    "Custom": {
+      logo: `${StaticBaseUrl}/img/social_custom.png`,
+      url: "https://door.casdoor.com/",
     },
   },
   Payment: {
@@ -866,10 +882,10 @@ export function getClickable(text) {
 }
 
 export function getProviderLogoURL(provider) {
+  if (provider.type === "Custom" && provider.customLogo) {
+    return provider.customLogo;
+  }
   if (provider.category === "OAuth") {
-    if (provider.type === "Custom" && provider.customLogo) {
-      return provider.customLogo;
-    }
     return `${StaticBaseUrl}/img/social_${provider.type.toLowerCase()}.png`;
   } else {
     const info = OtherProviderInfo[provider.category][provider.type];
@@ -912,7 +928,8 @@ export function getProviderTypeOptions(category) {
         {id: "Casdoor", name: "Casdoor"},
         {id: "Infoflow", name: "Infoflow"},
         {id: "Apple", name: "Apple"},
-        {id: "AzureAD", name: "AzureAD"},
+        {id: "AzureAD", name: "Azure AD"},
+        {id: "AzureADB2C", name: "Azure AD B2C"},
         {id: "Slack", name: "Slack"},
         {id: "Steam", name: "Steam"},
         {id: "Bilibili", name: "Bilibili"},
@@ -977,6 +994,7 @@ export function getProviderTypeOptions(category) {
         {id: "SUBMAIL", name: "SUBMAIL"},
         {id: "Mailtrap", name: "Mailtrap"},
         {id: "Azure ACS", name: "Azure ACS"},
+        {id: "Custom HTTP Email", name: "Custom HTTP Email"},
       ]
     );
   } else if (category === "SMS") {
@@ -985,6 +1003,8 @@ export function getProviderTypeOptions(category) {
         {id: "Aliyun SMS", name: "Alibaba Cloud SMS"},
         {id: "Amazon SNS", name: "Amazon SNS"},
         {id: "Azure ACS", name: "Azure ACS"},
+        {id: "Custom HTTP SMS", name: "Custom HTTP SMS"},
+        {id: "Mock SMS", name: "Mock SMS"},
         {id: "Infobip SMS", name: "Infobip SMS"},
         {id: "Tencent Cloud SMS", name: "Tencent Cloud SMS"},
         {id: "Baidu Cloud SMS", name: "Baidu Cloud SMS"},
@@ -1008,12 +1028,14 @@ export function getProviderTypeOptions(category) {
         {id: "Azure Blob", name: "Azure Blob"},
         {id: "Qiniu Cloud Kodo", name: "Qiniu Cloud Kodo"},
         {id: "Google Cloud Storage", name: "Google Cloud Storage"},
+        {id: "Synology", name: "Synology"},
       ]
     );
   } else if (category === "SAML") {
     return ([
       {id: "Aliyun IDaaS", name: "Aliyun IDaaS"},
       {id: "Keycloak", name: "Keycloak"},
+      {id: "Custom", name: "Custom"},
     ]);
   } else if (category === "Payment") {
     return ([
@@ -1064,6 +1086,38 @@ export function getProviderTypeOptions(category) {
   }
 }
 
+export function getCryptoAlgorithmOptions(cryptoAlgorithm) {
+  if (cryptoAlgorithm === "RS256") {
+    return (
+      [
+        {id: 1024, name: "1024"},
+        {id: 2048, name: "2048"},
+        {id: 4096, name: "4096"},
+      ]
+    );
+  } else if (cryptoAlgorithm === "HS256" || cryptoAlgorithm === "ES256") {
+    return (
+      [
+        {id: 256, name: "256"},
+      ]
+    );
+  } else if (cryptoAlgorithm === "ES384") {
+    return (
+      [
+        {id: 384, name: "384"},
+      ]
+    );
+  } else if (cryptoAlgorithm === "ES521") {
+    return (
+      [
+        {id: 521, name: "521"},
+      ]
+    );
+  } else {
+    return [];
+  }
+}
+
 export function renderLogo(application) {
   if (application === null) {
     return null;
@@ -1082,11 +1136,35 @@ export function renderLogo(application) {
   }
 }
 
+function isSigninMethodEnabled(application, signinMethod) {
+  if (application && application.signinMethods) {
+    return application.signinMethods.filter(item => item.name === signinMethod).length > 0;
+  } else {
+    return false;
+  }
+}
+
+export function isPasswordEnabled(application) {
+  return isSigninMethodEnabled(application, "Password");
+}
+
+export function isCodeSigninEnabled(application) {
+  return isSigninMethodEnabled(application, "Verification code");
+}
+
+export function isWebAuthnEnabled(application) {
+  return isSigninMethodEnabled(application, "WebAuthn");
+}
+
+export function isLdapEnabled(application) {
+  return isSigninMethodEnabled(application, "LDAP");
+}
+
 export function getLoginLink(application) {
   let url;
   if (application === null) {
     url = null;
-  } else if (!application.enablePassword && window.location.pathname.includes("/auto-signup/oauth/authorize")) {
+  } else if (window.location.pathname.includes("/auto-signup/oauth/authorize")) {
     url = window.location.href.replace("/auto-signup/oauth/authorize", "/login/oauth/authorize");
   } else if (authConfig.appName === application.name) {
     url = "/login";
@@ -1096,11 +1174,6 @@ export function getLoginLink(application) {
     url = application.signinUrl;
   }
   return url;
-}
-
-export function renderLoginLink(application, text) {
-  const url = getLoginLink(application);
-  return renderLink(url, text, null);
 }
 
 export function redirectToLoginPage(application, history) {
@@ -1127,7 +1200,7 @@ function renderLink(url, text, onClick) {
     );
   } else if (url.startsWith("http")) {
     return (
-      <a target="_blank" rel="noopener noreferrer" style={{float: "right"}} href={url} onClick={() => {
+      <a style={{float: "right"}} href={url} onClick={() => {
         if (onClick !== null) {
           onClick();
         }
@@ -1142,7 +1215,7 @@ export function renderSignupLink(application, text) {
   let url;
   if (application === null) {
     url = null;
-  } else if (!application.enablePassword && window.location.pathname.includes("/login/oauth/authorize")) {
+  } else if (window.location.pathname.includes("/login/oauth/authorize")) {
     url = window.location.href.replace("/login/oauth/authorize", "/auto-signup/oauth/authorize");
   } else if (authConfig.appName === application.name) {
     url = "/signup";
@@ -1175,7 +1248,11 @@ export function renderForgetLink(application, text) {
     }
   }
 
-  return renderLink(url, text, null);
+  const storeSigninUrl = () => {
+    sessionStorage.setItem("signinUrl", window.location.href);
+  };
+
+  return renderLink(url, text, storeSigninUrl);
 }
 
 export function renderHelmet(application) {
@@ -1355,4 +1432,61 @@ export function getCurrencySymbol(currency) {
   } else {
     return currency;
   }
+}
+
+export function getFriendlyUserName(account) {
+  if (account.firstName !== "" && account.lastName !== "") {
+    return `${account.firstName}, ${account.lastName}`;
+  } else if (account.displayName !== "") {
+    return account.displayName;
+  } else if (account.name !== "") {
+    return account.name;
+  } else {
+    return account.id;
+  }
+}
+
+export function getUserCommonFields() {
+  return ["Owner", "Name", "CreatedTime", "UpdatedTime", "DeletedTime", "Id", "Type", "Password", "PasswordSalt", "DisplayName", "FirstName", "LastName", "Avatar", "PermanentAvatar",
+    "Email", "EmailVerified", "Phone", "Location", "Address", "Affiliation", "Title", "IdCardType", "IdCard", "Homepage", "Bio", "Tag", "Region",
+    "Language", "Gender", "Birthday", "Education", "Score", "Ranking", "IsDefaultAvatar", "IsOnline", "IsAdmin", "IsForbidden", "IsDeleted", "CreatedIp",
+    "PreferredMfaType", "TotpSecret", "SignupApplication"];
+}
+
+export function getDefaultHtmlEmailContent() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verification Code Email</title>
+<style>
+    body { font-family: Arial, sans-serif; }
+    .email-container { width: 600px; margin: 0 auto; }
+    .header { text-align: center; }
+    .code { font-size: 24px; margin: 20px 0; text-align: center; }
+    .footer { font-size: 12px; text-align: center; margin-top: 50px; }
+    .footer a { color: #000; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="email-container">
+  <div class="header">
+        <h3>Casbin Organization</h3>
+        <img src="https://cdn.casbin.org/img/casdoor-logo_1185x256.png" alt="Casdoor Logo" width="300">
+    </div>
+    <p><strong>%{user.friendlyName}</strong>, here is your verification code</p>
+    <p>Use this code for your transaction. It's valid for 5 minutes</p>
+    <div class="code">
+        %s
+    </div>
+    <p>Thanks</p>
+    <p>Casbin Team</p>
+    <hr>
+    <div class="footer">
+        <p>Casdoor is a brand operated by Casbin organization. For more info please refer to <a href="https://casdoor.org">https://casdoor.org</a></p>
+    </div>
+</div>
+</body>
+</html>`;
 }

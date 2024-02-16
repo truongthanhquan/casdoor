@@ -43,7 +43,7 @@ type Syncer struct {
 	Host             string         `xorm:"varchar(100)" json:"host"`
 	Port             int            `json:"port"`
 	User             string         `xorm:"varchar(100)" json:"user"`
-	Password         string         `xorm:"varchar(100)" json:"password"`
+	Password         string         `xorm:"varchar(150)" json:"password"`
 	Database         string         `xorm:"varchar(100)" json:"database"`
 	Table            string         `xorm:"varchar(100)" json:"table"`
 	TableColumns     []*TableColumn `xorm:"mediumtext" json:"tableColumns"`
@@ -116,22 +116,35 @@ func GetSyncer(id string) (*Syncer, error) {
 	return getSyncer(owner, name)
 }
 
-func GetMaskedSyncer(syncer *Syncer) *Syncer {
+func GetMaskedSyncer(syncer *Syncer, errs ...error) (*Syncer, error) {
+	if len(errs) > 0 && errs[0] != nil {
+		return nil, errs[0]
+	}
+
 	if syncer == nil {
-		return nil
+		return nil, nil
 	}
 
 	if syncer.Password != "" {
 		syncer.Password = "***"
 	}
-	return syncer
+	return syncer, nil
 }
 
-func GetMaskedSyncers(syncers []*Syncer) []*Syncer {
-	for _, syncer := range syncers {
-		syncer = GetMaskedSyncer(syncer)
+func GetMaskedSyncers(syncers []*Syncer, errs ...error) ([]*Syncer, error) {
+	if len(errs) > 0 && errs[0] != nil {
+		return nil, errs[0]
 	}
-	return syncers
+
+	var err error
+	for _, syncer := range syncers {
+		syncer, err = GetMaskedSyncer(syncer)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return syncers, nil
 }
 
 func UpdateSyncer(id string, syncer *Syncer) (bool, error) {

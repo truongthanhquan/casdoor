@@ -139,6 +139,10 @@ func (c *ApiController) GetUserApplication() {
 		c.ResponseError(err.Error())
 		return
 	}
+	if application == nil {
+		c.ResponseError(fmt.Sprintf(c.T("general:The organization: %s should have one application at least"), user.Owner))
+		return
+	}
 
 	c.ResponseOk(object.GetMaskedApplication(application, userId))
 }
@@ -168,6 +172,12 @@ func (c *ApiController) GetOrganizationApplications() {
 
 	if limit == "" || page == "" {
 		applications, err := object.GetOrganizationApplications(owner, organization)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+
+		applications, err = object.GetAllowedApplications(applications, userId)
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
